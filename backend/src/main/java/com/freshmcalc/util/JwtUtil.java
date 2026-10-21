@@ -5,7 +5,10 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.function.Function;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,12 +25,43 @@ public class JwtUtil {
 
     public JwtUtil(@Value("${jwt.secret}") String secret,
                    @Value("${jwt.expiration-ms}") long expirationMs) {
-        byte[] keyBytes = Decoders.BASE64.decode(secret);
-        if (keyBytes.length == 0) {
-            keyBytes = secret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        }
-        this.key = Keys.hmacShaKeyFor(keyBytes);
+        this.key = Keys.hmacShaKeyFor(deriveKeyBytes(secret));
         this.expirationMs = expirationMs;
+    }
+
+    /**
+     * Accepts a Base64, Base64URL or plain-text secret and always returns at
+     * least 32 bytes, so HS256 key creation never fails at startup — e.g. the
+     * human-readable development default contains '-' characters, which are
+     * illegal in standard Base64 and previously aborted application startup.
+     * For production, set JWT_SECRET to the output of {@code openssl rand -base64 48}.
+     */
+    private static byte[] deriveKeyBytes(String secret) {
+        String value = secret == null ? "" : secret.trim();
+        byte[] decoded = tryDecode(value);
+        byte[] raw = decoded != null ? decoded : value.getBytes(StandardCharsets.UTF_8);
+        if (raw.length >= 32) {
+            return raw;
+        }
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(raw);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available on this JVM", e);
+        }
+    }
+
+    private static byte[] tryDecode(String value) {
+        try {
+            return Decoders.BASE64.decode(value);
+        } catch (Exception ignored) {
+            // not standard Base64 — try the URL-safe variant next
+        }
+        try {
+            return Decoders.BASE64URL.decode(value);
+        } catch (Exception ignored) {
+            // plain-text secret — used as-is by the caller
+        }
+        return null;
     }
 
     public String extractUsername(String token) {
