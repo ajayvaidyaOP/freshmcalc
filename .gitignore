@@ -3,17 +3,17 @@
 *.jar
 *.war
 *.ear
-*.gradle
 .gradle/
 build/
 out/
-.gradlew
-gradle-wrapper.jar
-.gradlew.bat
 .idea/
 *.iml
 *.ipr
 *.iws
+# ...but the Gradle wrapper jar is committed on purpose so the build
+# works without a local Gradle installation. (Do NOT add *.gradle here:
+# it would ignore build.gradle / settings.gradle themselves.)
+!**/gradle/wrapper/gradle-wrapper.jar
 
 # Node / frontend
 node_modules/
@@ -26,8 +26,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# IDE
-.vscode/
+# IDE — personal settings ignored; shared launch/tasks/extensions are committed
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 *.swp
 *.swo
 .DS_Store

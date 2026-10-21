@@ -4,52 +4,152 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 84% 5%;
+    /* Fresh green light theme */
+    --background: 138 24% 97%;
+    --foreground: 158 32% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222 84% 5%;
+    --card-foreground: 158 32% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 84% 5%;
-    --primary: 213 78% 22%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 84% 5%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 156 72% 42%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 213 78% 22%;
-    --radius: 0.75rem;
+    --popover-foreground: 158 32% 11%;
+    --primary: 152 56% 27%;
+    --primary-foreground: 140 40% 97%;
+    --secondary: 145 32% 93%;
+    --secondary-foreground: 155 40% 20%;
+    --muted: 145 18% 94%;
+    --muted-foreground: 155 12% 40%;
+    --accent: 145 38% 92%;
+    --accent-foreground: 155 45% 22%;
+    --destructive: 0 68% 48%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 148 16% 87%;
+    --input: 148 16% 85%;
+    --ring: 152 56% 35%;
+    --radius: 1rem;
   }
 
   .dark {
-    --background: 213 78% 10%;
-    --foreground: 210 40% 98%;
-    --card: 213 78% 12%;
-    --card-foreground: 210 40% 98%;
-    --popover: 213 78% 12%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 156 72% 42%;
-    --primary-foreground: 213 78% 10%;
-    --secondary: 213 78% 15%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 213 78% 15%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 156 72% 42%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 213 78% 20%;
-    --input: 213 78% 20%;
-    --ring: 156 72% 42%;
+    /* Deep forest dark theme */
+    --background: 160 28% 6%;
+    --foreground: 142 24% 93%;
+    --card: 158 24% 9%;
+    --card-foreground: 142 24% 93%;
+    --popover: 158 26% 10%;
+    --popover-foreground: 142 24% 93%;
+    --primary: 148 55% 42%;
+    --primary-foreground: 160 40% 7%;
+    --secondary: 156 22% 14%;
+    --secondary-foreground: 142 24% 93%;
+    --muted: 156 20% 13%;
+    --muted-foreground: 148 14% 62%;
+    --accent: 152 24% 16%;
+    --accent-foreground: 142 30% 88%;
+    --destructive: 0 62% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 155 18% 17%;
+    --input: 155 18% 19%;
+    --ring: 148 55% 45%;
   }
 }
 
 @layer base {
-  * { @apply border-border; }
-  body { @apply bg-background text-foreground antialiased; font-family: var(--font-sans); }
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased text-[15px] leading-relaxed;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight;
+  }
+  ::selection {
+    @apply bg-brand-600/90 text-white;
+  }
+  /* Slim, theme-aware scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.35);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+@layer utilities {
+  /** Frosted glass panel */
+  .glass {
+    @apply bg-card/80 backdrop-blur-xl;
+  }
+  /** Brand gradient text */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-700 via-brand-500 to-lime-500 bg-clip-text text-transparent dark:from-brand-300 dark:via-brand-400 dark:to-lime-300;
+  }
+  /** Deep-green hero / sidebar surface with subtle leaf glow */
+  .surface-forest {
+    background:
+      radial-gradient(720px 320px at 85% -10%, rgb(95 185 136 / 0.28), transparent 60%),
+      radial-gradient(560px 280px at -10% 110%, rgb(163 230 53 / 0.10), transparent 55%),
+      linear-gradient(160deg, #0d2f1f 0%, #0a2519 55%, #071b12 100%);
+  }
+  /** Dotted texture used on light sections */
+  .bg-dots {
+    background-image: radial-gradient(hsl(var(--foreground) / 0.07) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  /** Hide scrollbars for chip rows */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /** Safe-area helpers for notched phones */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  /** Scroll-reveal (paired with <Reveal />) */
+  .reveal {
+    opacity: 0;
+    transform: translateY(22px);
+    transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }

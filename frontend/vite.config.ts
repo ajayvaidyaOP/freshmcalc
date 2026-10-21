@@ -10,9 +10,16 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
     port: 5173,
+    allowedHosts: true,
     proxy: {
       '/api': 'http://localhost:8080',
     },
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 5173,
+    allowedHosts: true,
   },
 });

@@ -72,3 +72,10 @@ cors:
 market:
   default-market: Dubai, UAE
   default-currency: AED
+
+app:
+  admin:
+    # First admin account is created on startup when both are set (see AdminBootstrap).
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    first-name: ${ADMIN_FIRST_NAME:Admin}

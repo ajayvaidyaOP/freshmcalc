@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "1. FreshmCalc Backend (Spring Boot)",
+      "request": "launch",
+      "mainClass": "com.freshmcalc.FreshmcalcApplication",
+      "projectName": "freshmcalc-backend",
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "console": "integratedTerminal"
+    }
+  ]
+}
