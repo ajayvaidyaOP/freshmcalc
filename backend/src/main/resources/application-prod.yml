@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        health: true
+        info: true
+
+razorpay:
+  test-mode: ${RAZORPAY_TEST_MODE:false}
+
+logging:
+  level:
+    root: INFO
+    com.freshmcalc: INFO
