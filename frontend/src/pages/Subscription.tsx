@@ -3,89 +3,244 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { DollarSign, CreditCard, Clock, ShieldAlert } from 'lucide-react';
+import { ArrowRight, BadgePercent, CalendarClock, Check, Crown, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/common/PageHeader';
 import { subscriptionsService } from '@/services/subscriptions.service';
-import { paymentsService } from '@/services/payments.service';
+import { FALLBACK_PLANS } from '@/lib/sample-data';
+import { formatDate, formatPaise } from '@/lib/format';
+import { apiError } from '@/lib/api';
+import { toast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+
+const FEATURE_LABELS: Array<[string, string]> = [
+  ['dubaiRatesAccess', 'Live Dubai rates (AED)'],
+  ['calculatorAccess', 'Export cost calculator'],
+  ['pdfExportAccess', 'PDF quotations'],
+  ['savedCalculationsAccess', 'Saved cost sheets'],
+];
+
+function monthsOf(cycle?: string) {
+  if (cycle === 'QUARTERLY') return 3;
+  if (cycle === 'YEARLY') return 12;
+  return 1;
+}
 
 export default function Subscription() {
-  const { data: plans = [], isLoading: ploading } = useQuery({ queryKey: ['plans'], queryFn: subscriptionsService.listPlans });
-  const subscriptionQuery = useQuery({
-    queryKey: ['subscription'],
-    queryFn: subscriptionsService.getActive,
-    enabled: true,
-    retry: false,
-  });
-  const { data: subscription, isLoading: sloading } = subscriptionQuery;
-  const userRaw = localStorage.getItem('freshmcalc_user');
-  const user = userRaw ? JSON.parse(userRaw) : null;
+  const plansQuery = useQuery({ queryKey: ['plans'], queryFn: subscriptionsService.listPlans });
+  const subQuery = useQuery({ queryKey: ['subscription'], queryFn: subscriptionsService.getActive, retry: false });
+  const [subscribingId, setSubscribingId] = React.useState<number | null>(null);
+
+  const usingFallback = plansQuery.isError || (!plansQuery.isLoading && (!plansQuery.data || plansQuery.data.length === 0));
+  const plans = usingFallback ? FALLBACK_PLANS : plansQuery.data || [];
+  const subscription = subQuery.data;
+  const subActive = Boolean(subscription?.active);
+
+  const daysLeft = React.useMemo(() => {
+    if (!subscription?.currentPeriodEnd) return null;
+    const diff = new Date(subscription.currentPeriodEnd).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diff / 86_400_000));
+  }, [subscription]);
+
+  const progress = React.useMemo(() => {
+    if (!subscription?.currentPeriodStart || !subscription?.currentPeriodEnd) return null;
+    const start = new Date(subscription.currentPeriodStart).getTime();
+    const end = new Date(subscription.currentPeriodEnd).getTime();
+    if (end <= start) return null;
+    return Math.min(100, Math.max(0, ((Date.now() - start) / (end - start)) * 100));
+  }, [subscription]);
+
+  const subscribe = async (plan: any) => {
+    setSubscribingId(plan.id);
+    try {
+      await subscriptionsService.subscribe(plan.id);
+      toast({
+        title: `${plan.name} plan selected`,
+        description: 'Complete payment via Razorpay to activate. If checkout does not open, payment configuration may be pending.',
+        variant: 'success',
+      });
+      subQuery.refetch();
+    } catch (e: any) {
+      toast({
+        title: 'Checkout could not start',
+        description: apiError(e, 'Payment configuration may be required. Please contact support@freshmcalc.com.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setSubscribingId(null);
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Subscription & Payments</h1>
-        <p className="text-muted-foreground">Manage your plan, payments and Razorpay receipts.</p>
+    <div className="space-y-5 sm:space-y-6">
+      <PageHeader
+        eyebrow="Billing"
+        title="Subscription & Payments"
+        description="Manage your FreshmCalc plan. Payments are processed securely in INR via Razorpay."
+      />
+
+      {/* Current plan hero */}
+      {subQuery.isLoading ? (
+        <Skeleton className="h-[190px] rounded-3xl" />
+      ) : (
+        <div className={cn('relative overflow-hidden rounded-3xl p-6 shadow-soft sm:p-7', subActive ? 'surface-forest text-white' : 'border border-border/80 bg-card')}>
+          {subActive && <div aria-hidden className="bg-dots pointer-events-none absolute inset-0 opacity-15 [mask-image:radial-gradient(480px_220px_at_85%_0%,black,transparent)]" />}
+          <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-4">
+              <span className={cn('flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl', subActive ? 'bg-lime-400 text-brand-950' : 'bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300')}>
+                <Crown className="h-7 w-7" strokeWidth={1.8} />
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-display text-xl font-extrabold">
+                    {subActive ? `${subscription.planName} plan` : 'Free account'}
+                  </h2>
+                  <Badge variant={subActive ? 'success' : 'warn'} className={cn(subActive && 'border-lime-300/30 bg-lime-400/15 text-lime-200')}>
+                    {subActive ? 'Active' : 'Not subscribed'}
+                  </Badge>
+                </div>
+                <p className={cn('mt-1 max-w-md text-sm leading-relaxed', subActive ? 'text-brand-100/85' : 'text-muted-foreground')}>
+                  {subActive
+                    ? `Full access to Dubai AED rates, the export calculator and PDF quotations${subscription.currentPeriodEnd ? ` until ${formatDate(subscription.currentPeriodEnd)}` : ''}.`
+                    : 'Subscribe to unlock live Dubai AED rates, the India → Dubai export calculator, saved cost sheets and PDF quotations.'}
+                </p>
+                {subActive && progress !== null && (
+                  <div className="mt-4 max-w-md">
+                    <div className="h-2 overflow-hidden rounded-full bg-white/15" aria-hidden>
+                      <div className="h-full rounded-full bg-gradient-to-r from-brand-400 to-lime-300 transition-all duration-700" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-brand-200/85">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      {daysLeft !== null ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left in this period` : 'Current billing period'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            {!subActive && (
+              <Button asChild size="lg" className="w-full shrink-0 md:w-auto">
+                <a href="#plans">Choose a plan <ArrowRight className="h-[18px] w-[18px]" /></a>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Plans */}
+      <div id="plans" className="scroll-mt-24">
+        <h2 className="mb-4 font-display text-lg font-bold">{subActive ? 'Switch or renew' : 'Available plans'}</h2>
+        {plansQuery.isLoading ? (
+          <div className="grid gap-4 md:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-[340px] rounded-3xl" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-3">
+            {plans.map((plan: any) => {
+              const months = monthsOf(plan.billingCycle);
+              const isCurrent = subActive && subscription?.planName === plan.name;
+              const popular = plan.name === 'Quarterly';
+              const saving = plan.billingCycle === 'YEARLY' ? 'Save 17%' : plan.billingCycle === 'QUARTERLY' ? 'Save 13%' : null;
+              return (
+                <article
+                  key={plan.id}
+                  className={cn(
+                    'relative flex flex-col rounded-3xl p-6 transition-all duration-300 hover:-translate-y-1 sm:p-7',
+                    popular
+                      ? 'surface-forest text-white shadow-glow ring-1 ring-brand-400/40'
+                      : 'border border-border/80 bg-card shadow-soft hover:shadow-lift',
+                    isCurrent && 'ring-2 ring-brand-500'
+                  )}
+                >
+                  {popular && !isCurrent && <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 border-0 bg-lime-400 text-brand-950">Most popular</Badge>}
+                  {isCurrent && <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 border-0 bg-brand-600 text-white">Current plan</Badge>}
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-display text-base font-bold">{plan.name}</h3>
+                    {saving && (
+                      <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-extrabold', popular ? 'bg-lime-400/20 text-lime-300' : 'bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200')}>
+                        <BadgePercent className="h-3.5 w-3.5" /> {saving}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-3">
+                    <span className="font-display text-4xl font-extrabold">{formatPaise(plan.priceAmount)}</span>
+                    <span className={cn('ml-1 text-sm font-semibold', popular ? 'text-brand-200/80' : 'text-muted-foreground')}>
+                      / {months === 1 ? 'month' : `${months} months`}
+                    </span>
+                  </p>
+                  <p className={cn('mt-1 text-[13px] font-bold', popular ? 'text-lime-300' : 'text-brand-600 dark:text-brand-400')}>
+                    ≈ {formatPaise(Math.round((plan.priceAmount || 0) / months))} / month
+                  </p>
+                  <ul className="mt-5 flex-1 space-y-2 border-t border-dashed pt-5 text-sm [border-color:hsl(var(--border))]">
+                    {FEATURE_LABELS.map(([key, label]) => {
+                      const included = (plan as any)[key] !== false;
+                      return (
+                        <li key={key} className={cn('flex items-center gap-2', !included && 'opacity-45')}>
+                          <Check className={cn('h-4 w-4 shrink-0', popular ? 'text-lime-300' : 'text-brand-600 dark:text-brand-400')} strokeWidth={3} />
+                          {label}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <Button
+                    variant={popular ? 'lime' : 'default'}
+                    size="lg"
+                    className="mt-6 w-full"
+                    disabled={!plan.active || isCurrent || subscribingId === plan.id}
+                    onClick={() => subscribe(plan)}
+                  >
+                    {subscribingId === plan.id ? (
+                      <><Loader2 className="h-5 w-5 animate-spin" /> Starting checkout…</>
+                    ) : isCurrent ? (
+                      'Current plan'
+                    ) : subActive ? (
+                      `Switch to ${plan.name}`
+                    ) : (
+                      `Subscribe — ${plan.name}`
+                    )}
+                  </Button>
+                </article>
+              );
+            })}
+          </div>
+        )}
+        {usingFallback && !plansQuery.isLoading && (
+          <p className="mt-3 text-xs text-muted-foreground">Showing standard plans while the server catalogue is unavailable.</p>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Current subscription</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {sloading ? (
-            <div className="p-4">Loading subscription...</div>
-          ) : subscriptionQuery.isError || !subscription ? (
-            <div className="space-y-4">
-              <div className="rounded-lg border border-border bg-muted p-4 text-center">
-                No active subscription. Select a plan below to subscribe.
-              </div>
-              <Button asChild className="w-full"><Link to="/pricing">View plans</Link></Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">{subscription.planName}</span>
-                <Badge variant={subscription.active ? 'success' : 'warn'}>
-                  {subscription.active ? 'Active' : 'Expired'}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Status</span>
-                <span className="font-mono text-sm">{subscription.status}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Period ends</span>
-                <span className="font-mono text-sm">{subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString() : '—'}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Amount paid</span>
-                <span className="font-mono text-sm">₹{(subscription.amountPaid ?? 0) / 100}</span>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>Available plans</CardTitle></CardHeader>
-        <CardContent className="grid md:grid-cols-3 gap-4">
-          {ploading ? <div className="p-4">Loading...</div> : (
-            plans.map((p: any) => (
-              <Card key={p.id} className="p-4">
-                <CardTitle className="text-base">{p.name} plan</CardTitle>
-                <div className="text-2xl font-bold mb-2">₹{(p.priceAmount ?? 0) / 100}</div>
-                <div className="text-xs text-muted-foreground mb-3">{p.billingCycle.toLowerCase()}</div>
-                <Button asChild className="w-full" disabled={!p.active}>
-                  <Link to="/login">Subscribe</Link>
-                </Button>
-              </Card>
-            ))
-          )}
-        </CardContent>
-      </Card>
+      {/* Payment info */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-center gap-3 space-y-0 pb-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300">
+              <ShieldCheck className="h-5 w-5" />
+            </span>
+            <CardTitle className="text-base">Secure Razorpay payments</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm leading-relaxed text-muted-foreground">
+            Pay with UPI, debit/credit cards or net-banking. FreshmCalc never stores your card details — payment is
+            processed entirely by Razorpay. Your plan activates automatically once payment is confirmed.
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex-row items-center gap-3 space-y-0 pb-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300">
+              <Info className="h-5 w-5" />
+            </span>
+            <CardTitle className="text-base">Good to know</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm leading-relaxed text-muted-foreground">
+            Access stays active till the end of your billing period even if you cancel. If checkout doesn't open,
+            payments may still be in test/configuration mode — write to support@freshmcalc.com and we'll activate you manually.
+            {' '}See the <Link to="/pricing" className="font-bold text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">pricing page</Link> for a full feature comparison.
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

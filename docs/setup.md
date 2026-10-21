@@ -40,6 +40,8 @@ RAZORPAY_KEY_SECRET=...
 RAZORPAY_WEBHOOK_SECRET=...
 RAZORPAY_TEST_MODE=true
 CORS_ALLOWED_ORIGINS=http://localhost:5173
+ADMIN_EMAIL=admin@freshmcalc.com
+ADMIN_PASSWORD=Admin@123
 ```
 
 Never commit real secrets. `.env` is gitignored.
@@ -52,6 +54,33 @@ Flyway runs automatically on startup against an empty database. Migrations live 
 - `V2__reference_data.sql` — reference countries/cities/ports and default subscription plans
 
 To validate migrations without Hibernate auto-create, `spring.jpa.hibernate.ddl-auto=validate`.
+
+### First admin account
+
+There is **no built-in default admin**. Public registration always creates `CUSTOMER` accounts. To create the first admin, set these environment variables before starting the backend (see `backend/.env.example` / `infrastructure/.env.example`):
+
+```bash
+ADMIN_EMAIL=admin@freshmcalc.com
+ADMIN_PASSWORD=Admin@123        # local/dev only — use a strong password in production
+```
+
+On startup the backend creates this account with role `ADMIN` (or promotes the account if the email is already registered as a customer — its password is not changed). Log in with these credentials at `/login`; the admin panel appears in the sidebar. After first login you may remove `ADMIN_PASSWORD` from the environment.
+
+**Alternatives**
+
+- Promote any registered user directly in the database:
+  ```sql
+  UPDATE users SET role = 'ADMIN' WHERE email = 'you@company.com';
+  ```
+- Insert an admin with SQL (password below is `Admin@123`, BCrypt — **change it after login**, dev use only):
+  ```sql
+  INSERT INTO users (email, password_hash, first_name, role, status, email_verified)
+  VALUES ('admin@freshmcalc.com',
+          '$2b$10$1q6LuBzWKQSiPwjMxT6I6esFN5xnAiMB7xVL194M2QMotOvbmP/X6',
+          'Admin', 'ADMIN', 'ACTIVE', TRUE);
+  ```
+
+**Just want to look around?** Use **Explore live demo** on the website (no backend needed) and switch to **Admin view** from the demo banner — no credentials required.
 
 ## 3. Frontend setup
 

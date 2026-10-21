@@ -4,37 +4,43 @@ import * as React from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils';
 
-type TabsListProps = React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>;
-type TabsTriggerProps = React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>;
-type TabsContentProps = React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>;
-
 export const Tabs = TabsPrimitive.Root;
 
-export const TabsList = React.forwardRef<HTMLDivElement, TabsListProps>(
-  ({ className, ...props }, ref) => (
-    <TabsPrimitive.List
-      ref={ref}
-      className={cn('inline-flex h-10 items-center justify-center rounded-lg bg-muted p-1 text-xs font-semibold text-foreground', className)}
-      {...props}
-    />
-  )
-);
+export const TabsList = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.List>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.List
+    ref={ref}
+    className={cn('inline-flex h-11 items-center justify-center gap-1 rounded-xl bg-muted p-1 text-muted-foreground', className)}
+    {...props}
+  />
+));
 TabsList.displayName = TabsPrimitive.List.displayName;
 
-export const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
-  ({ className, ...props }, ref) => (
-    <TabsPrimitive.Trigger
-      ref={ref}
-      className={cn('rounded-md px-3 py-1 text-sm font-medium transition-colors data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm', className)}
-      {...props}
-    />
-  )
-);
+export const TabsTrigger = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Trigger
+    ref={ref}
+    className={cn(
+      'inline-flex h-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-brand-800 data-[state=active]:shadow-sm dark:data-[state=active]:text-brand-200',
+      className
+    )}
+    {...props}
+  />
+));
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName;
 
-export const TabsContent = React.forwardRef<HTMLDivElement, TabsContentProps>(
-  ({ className, ...props }, ref) => (
-    <TabsPrimitive.Content ref={ref} className={cn('mt-2 text-sm leading-6', className)} {...props} />
-  )
-);
+export const TabsContent = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Content
+    ref={ref}
+    className={cn('mt-4 animate-fade-in focus-visible:outline-none', className)}
+    {...props}
+  />
+));
 TabsContent.displayName = TabsPrimitive.Content.displayName;

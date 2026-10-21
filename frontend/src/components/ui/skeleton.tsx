@@ -1,14 +1,13 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
-  className?: string;
-}
-
-function Skeleton({ className = '', ...props }: SkeletonProps) {
+function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('animate-pulse rounded-md bg-muted', className)}
+      className={cn(
+        'animate-shimmer rounded-xl bg-[linear-gradient(110deg,hsl(var(--muted))_40%,hsl(var(--background))_50%,hsl(var(--muted))_60%)] bg-[length:200%_100%]',
+        className
+      )}
       {...props}
     />
   );

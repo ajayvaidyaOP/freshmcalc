@@ -1,76 +1,56 @@
 'use client';
 
 import * as React from 'react';
-import * as ToastPrimitives from '@radix-ui/react-toast';
+import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { useToast, dismissToast, type ToastVariant } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-const ToastProvider = ToastPrimitives.Provider;
+const ICONS: Record<ToastVariant, React.ElementType> = {
+  default: Info,
+  success: CheckCircle2,
+  destructive: AlertCircle,
+};
 
-const ToastViewport = React.forwardRef<
-  React.ElementRef<typeof ToastPrimitives.Viewport>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>
->(({ className, ...props }, ref) => (
-  <ToastPrimitives.Viewport
-    ref={ref}
-    className={cn(
-      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-0 sm:flex-col sm:mt-4 sm:mr-4',
-      className
-    )}
-    {...props}
-  />
-));
-ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
+const STYLES: Record<ToastVariant, string> = {
+  default: 'border-border bg-card text-card-foreground',
+  success: 'border-brand-300 bg-brand-700 text-white dark:border-brand-700 dark:bg-brand-800',
+  destructive: 'border-red-300 bg-red-600 text-white dark:border-red-800',
+};
 
-const Toast = React.forwardRef<
-  React.ElementRef<typeof ToastPrimitives.Root>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root>
->(({ className, ...props }, ref) => (
-  <ToastPrimitives.Root
-    ref={ref}
-    className={cn('rounded-lg border border-border bg-background p-4', className)}
-    {...props}
-  />
-));
-Toast.displayName = ToastPrimitives.Root.displayName;
-
-const ToastAction = React.forwardRef<
-  React.ElementRef<typeof ToastPrimitives.Action>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Action>
->(({ className, ...props }, ref) => (
-  <ToastPrimitives.Action
-    ref={ref}
-    className={cn('inline-flex h-8 items-center justify-center rounded-md bg-transparent px-2 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary hover:text-secondary-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:h-4 [&_svg]:w-4', className)}
-    {...props}
-  />
-));
-ToastAction.displayName = ToastPrimitives.Action.displayName;
-
-const ToastClose = React.forwardRef<
-  React.ElementRef<typeof ToastPrimitives.Close>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Close>
->(({ className, ...props }, ref) => (
-  <ToastPrimitives.Close
-    ref={ref}
-    className={cn('inline-flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50', className)}
-    {...props}
-  />
-));
-ToastClose.displayName = ToastPrimitives.Close.displayName;
-
-const ToastTitle = React.forwardRef<
-  React.ElementRef<typeof ToastPrimitives.Title>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title>
->(({ className, ...props }, ref) => (
-  <ToastPrimitives.Title ref={ref} className={cn('text-sm font-semibold', className)} {...props} />
-));
-ToastTitle.displayName = ToastPrimitives.Title.displayName;
-
-const ToastDescription = React.forwardRef<
-  React.ElementRef<typeof ToastPrimitives.Description>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Description>
->(({ className, ...props }, ref) => (
-  <ToastPrimitives.Description ref={ref} className={cn('text-sm text-muted-foreground', className)} {...props} />
-));
-ToastDescription.displayName = ToastPrimitives.Description.displayName;
-
-export { Toast, ToastAction, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastViewport };
+export function Toaster() {
+  const { toasts } = useToast();
+  return (
+    <div
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] z-[100] flex flex-col items-stretch gap-2 sm:inset-x-auto sm:right-5 sm:top-5 sm:bottom-auto sm:w-[380px] lg:bottom-auto"
+    >
+      {toasts.map((t) => {
+        const Icon = ICONS[t.variant || 'default'];
+        return (
+          <div
+            key={t.id}
+            className={cn(
+              'pointer-events-auto flex items-start gap-3 rounded-2xl border p-4 shadow-lift transition-all duration-300',
+              STYLES[t.variant || 'default'],
+              t.open ? 'animate-toast-in opacity-100' : 'translate-y-2 opacity-0'
+            )}
+          >
+            <Icon className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold leading-snug">{t.title}</p>
+              {t.description && <p className="mt-0.5 text-[13px] leading-snug opacity-90">{t.description}</p>}
+            </div>
+            <button
+              type="button"
+              aria-label="Dismiss notification"
+              onClick={() => dismissToast(t.id)}
+              className="-mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full opacity-70 transition-opacity hover:opacity-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
