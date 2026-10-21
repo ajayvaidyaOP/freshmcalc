@@ -5,6 +5,14 @@ FreshmCalc is a Dubai fresh produce market-rate and India-to-Dubai export costin
 ## Architecture
 
 - `frontend/` — React + Vite + TypeScript, Tailwind CSS, shadcn/ui, React Router, TanStack Query, React Hook Form, Zod, Lucide React, Recharts
+
+### Frontend experience
+
+- **Green design system** — deep-forest brand palette (dark sidebar/hero surfaces, lime accents), Sora display + Manrope UI fonts, light & dark modes (persisted, respects system preference).
+- **Fully responsive** — phone: app-style bottom navigation with a raised Calculator action + slide-over menu; tablet: icon rail; desktop: collapsible sidebar. Tables adapt to cards on small screens; 44px+ touch targets and safe-area padding throughout.
+- **Landing page** — live-rates preview, 7-day trend chart, rates ticker, features, how-it-works, testimonials, pricing and FAQ (all sample data clearly labelled).
+- **Demo mode** — "Explore live demo" (landing hero / login) opens the full app with sample Dubai data and a Trader/Admin view switcher, no backend needed. Demo data is always labelled and never touches real accounts. Exit via the demo banner.
+- Route-level code splitting keeps first load fast; Recharts/jsPDF load only on the pages that use them.
 - `backend/` — Java 21, Spring Boot 3.x, Gradle, Spring Security, Spring Data JPA, Flyway, PostgreSQL, OpenAPI (springdoc), Razorpay, JUnit 5
 - `infrastructure/` — Docker, Docker Compose, Nginx, HTTPS, backup scripts
 - `docs/` — API, setup, and operational documentation

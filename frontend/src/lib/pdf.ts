@@ -36,7 +36,7 @@ export function generateQuotationPdf(data: QuotationData) {
   const doc = new jsPDF();
   const title = 'FreshmCalc — Export Quotation';
   doc.setFontSize(18);
-  doc.setTextColor(15, 42, 67); // navy
+  doc.setTextColor(23, 67, 47); // FreshmCalc forest green
   doc.text(title, 20, 22);
   doc.setFontSize(11);
   doc.setTextColor(90, 100, 110);
@@ -72,7 +72,7 @@ export function generateQuotationPdf(data: QuotationData) {
     head: [['Cost breakdown', 'Value']],
     body: rows,
     theme: 'grid',
-    headStyles: { fillColor: [15, 42, 67] },
+    headStyles: { fillColor: [28, 82, 56] },
     styles: { fontSize: 9, cellPadding: 4 },
     margin: { left: 20, right: 20 },
   });
