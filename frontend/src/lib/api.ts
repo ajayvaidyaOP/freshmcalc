@@ -60,11 +60,16 @@ export function clearAuth() {
   localStorage.removeItem('freshmcalc_user');
 }
 
+/** True when the backend can't be reached at all (offline / proxy 5xx), vs a real API error. */
+export function isServerUnreachable(err: any): boolean {
+  if (!err?.response) return true; // network error or timeout — no response received
+  return Number(err.response.status) >= 500; // dev-proxy / gateway errors while backend is down
+}
+
 /** Friendly error message from an Axios error. */
 export function apiError(err: any, fallback = 'Something went wrong. Please try again.'): string {
   if (err?.response?.data?.error) return err.response.data.error;
   if (err?.response?.data?.message) return err.response.data.message;
-  if (err?.code === 'ECONNABORTED') return 'Request timed out. Please check your connection.';
-  if (!err?.response) return 'Cannot reach the server. Please check your connection.';
+  if (isServerUnreachable(err)) return 'Cannot reach the FreshmCalc server. Please make sure the backend is running.';
   return fallback;
 }

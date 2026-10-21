@@ -5,12 +5,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertCircle, ArrowRight, Eye, EyeOff, FlaskConical, Loader2, Lock, Mail } from 'lucide-react';
+import { AlertCircle, ArrowRight, Eye, EyeOff, FlaskConical, Loader2, Lock, Mail, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuthLayout, FormField } from '@/components/layout/AuthLayout';
 import { authService } from '@/services/auth.service';
-import { apiError, setAuth } from '@/lib/api';
+import { apiError, isServerUnreachable, setAuth } from '@/lib/api';
 import { enableDemo } from '@/lib/demo';
 import { toast } from '@/hooks/use-toast';
 
@@ -24,7 +24,13 @@ type Values = z.infer<typeof schema>;
 export default function Login() {
   const navigate = useNavigate();
   const [error, setError] = React.useState<string | null>(null);
+  const [serverDown, setServerDown] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
+
+  const openDemo = () => {
+    enableDemo();
+    window.location.href = '/dashboard';
+  };
   const {
     register,
     handleSubmit,
@@ -33,13 +39,18 @@ export default function Login() {
 
   const onSubmit = async (data: Values) => {
     setError(null);
+    setServerDown(false);
     try {
       const res = await authService.login(data.email, data.password);
       setAuth(res.token, { email: res.email, role: res.role, status: res.status });
       toast({ title: 'Welcome back!', description: 'Dubai market overview is ready.', variant: 'success' });
       navigate('/dashboard');
     } catch (e: any) {
-      setError(apiError(e, 'Login failed. Please check your email and password.'));
+      if (isServerUnreachable(e)) {
+        setServerDown(true);
+      } else {
+        setError(apiError(e, 'Login failed. Please check your email and password.'));
+      }
     }
   };
 
@@ -56,6 +67,24 @@ export default function Login() {
         </>
       }
     >
+      {serverDown && (
+        <div role="alert" className="mb-5 rounded-2xl border border-amber-300/70 bg-amber-50 p-4 animate-fade-in dark:border-amber-700/50 dark:bg-amber-950/40">
+          <div className="flex items-start gap-2.5">
+            <WifiOff className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="text-sm">
+              <p className="font-bold text-amber-900 dark:text-amber-200">Server se connect nahi ho raha</p>
+              <p className="mt-0.5 leading-relaxed text-amber-800/85 dark:text-amber-200/75">
+                Your email/password may be correct — but the backend server isn't running in this preview, so login
+                can't be verified. Explore the full app with sample data instead:
+              </p>
+            </div>
+          </div>
+          <Button type="button" size="lg" className="mt-3.5 w-full" onClick={openDemo}>
+            <FlaskConical className="h-5 w-5" /> Explore live demo — no login needed
+          </Button>
+        </div>
+      )}
+
       {error && (
         <div role="alert" className="mb-5 flex items-start gap-2.5 rounded-2xl border border-destructive/25 bg-destructive/[0.07] p-3.5 text-sm font-medium text-destructive animate-fade-in">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -113,6 +142,26 @@ export default function Login() {
           )}
         </Button>
       </form>
+
+      <div className="my-5 flex items-center gap-3" aria-hidden>
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">Just exploring?</span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        className="w-full border-brand-300 bg-brand-50/60 dark:border-brand-700 dark:bg-brand-950/60"
+        onClick={openDemo}
+      >
+        <FlaskConical className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+        Explore live demo — no signup
+      </Button>
+      <p className="mt-2 text-center text-xs text-muted-foreground">
+        Opens the full app with sample Dubai data. Switch to <strong>Admin view</strong> from the green demo banner inside.
+      </p>
 
       <p className="mt-5 rounded-xl bg-brand-50 px-3.5 py-2.5 text-center text-xs font-medium leading-relaxed text-brand-800 dark:bg-brand-950 dark:text-brand-200">
         Forgot your password? Write to support@freshmcalc.com and we'll help you reset it.

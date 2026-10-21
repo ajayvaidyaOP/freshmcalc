@@ -1,8 +1,10 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, Calculator, LineChart } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Calculator, FlaskConical, LineChart, WifiOff } from 'lucide-react';
 import { Logo } from '@/components/common/Logo';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { api, isServerUnreachable } from '@/lib/api';
+import { enableDemo } from '@/lib/demo';
 
 interface AuthLayoutProps {
   title: string;
@@ -74,12 +76,66 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             <div className="rounded-3xl border border-border/80 bg-card p-6 shadow-lift sm:p-8">
               <h1 className="font-display text-[26px] font-extrabold leading-tight">{title}</h1>
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
+              <ServerStatusBanner />
               <div className="mt-6">{children}</div>
             </div>
             <div className="mt-5 text-center text-sm text-muted-foreground">{footer}</div>
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+/**
+ * Pings a public API endpoint once; if the backend is unreachable (e.g. this
+ * is a frontend-only preview), shows a friendly notice with a demo shortcut
+ * instead of letting the user hit a confusing "login failed" error.
+ */
+function ServerStatusBanner() {
+  const [down, setDown] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    api
+      .get('/rates', { timeout: 4000 })
+      .catch((err) => {
+        if (!cancelled && isServerUnreachable(err)) setDown(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!down) return null;
+
+  return (
+    <div
+      role="status"
+      className="mt-5 rounded-2xl border border-amber-300/70 bg-amber-50 p-4 animate-fade-in dark:border-amber-700/50 dark:bg-amber-950/40"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
+          <WifiOff className="h-[18px] w-[18px]" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-amber-900 dark:text-amber-200">Backend server is not connected</p>
+          <p className="mt-0.5 text-[13px] leading-relaxed text-amber-800/85 dark:text-amber-200/75">
+            Login needs the FreshmCalc server running. In this preview only the website is live — explore the full
+            app with sample Dubai data instead:
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          enableDemo();
+          window.location.href = '/dashboard';
+        }}
+        className="mt-3.5 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand-600 to-brand-700 px-4 text-sm font-bold text-white shadow-soft transition-all hover:from-brand-500 hover:to-brand-600 active:scale-[0.98]"
+      >
+        <FlaskConical className="h-[18px] w-[18px]" /> Explore live demo — no login needed
+      </button>
     </div>
   );
 }
