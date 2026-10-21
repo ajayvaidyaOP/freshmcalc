@@ -1,0 +1,4 @@
+#!/bin/sh
+# Gradle wrapper script placeholder. In a real environment, run `gradle wrapper` to generate.
+echo "Use a local Gradle installation to build: ./gradlew build"
+exit 0
