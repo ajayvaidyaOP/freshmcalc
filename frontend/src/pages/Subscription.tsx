@@ -3,16 +3,19 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BadgePercent, CalendarClock, Check, Crown, Info, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowRight, BadgePercent, CalendarClock, Check, Crown, Info, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/common/PageHeader';
 import { subscriptionsService } from '@/services/subscriptions.service';
+import { paymentsService } from '@/services/payments.service';
 import { FALLBACK_PLANS } from '@/lib/sample-data';
 import { formatDate, formatPaise } from '@/lib/format';
-import { apiError } from '@/lib/api';
+import { apiError, getAuth, refreshUser } from '@/lib/api';
+import { isDemoMode } from '@/lib/demo';
+import { isNativeApp } from '@/lib/platform';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -29,10 +32,26 @@ function monthsOf(cycle?: string) {
   return 1;
 }
 
+/** Razorpay's checkout script is loaded only when the user starts a payment. */
+function loadRazorpay(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') return resolve(false);
+    if (window.Razorpay) return resolve(true);
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(Boolean(window.Razorpay));
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 export default function Subscription() {
   const plansQuery = useQuery({ queryKey: ['plans'], queryFn: subscriptionsService.listPlans });
   const subQuery = useQuery({ queryKey: ['subscription'], queryFn: subscriptionsService.getActive, retry: false });
   const [subscribingId, setSubscribingId] = React.useState<number | null>(null);
+  const [verifying, setVerifying] = React.useState(false);
+  const native = isNativeApp();
 
   const usingFallback = plansQuery.isError || (!plansQuery.isLoading && (!plansQuery.data || plansQuery.data.length === 0));
   const plans = usingFallback ? FALLBACK_PLANS : plansQuery.data || [];
@@ -54,23 +73,89 @@ export default function Subscription() {
   }, [subscription]);
 
   const subscribe = async (plan: any) => {
+    if (isDemoMode()) {
+      toast({
+        title: 'Demo mode',
+        description: 'Payments are disabled in the demo — every feature is already unlocked for exploring.',
+      });
+      return;
+    }
+    if (native) {
+      toast({
+        title: 'Manage your plan on the web',
+        description:
+          'Store in-app purchases are not enabled in this build. Open freshmcalc.com in your browser to subscribe or renew.',
+      });
+      return;
+    }
+
     setSubscribingId(plan.id);
     try {
-      await subscriptionsService.subscribe(plan.id);
-      toast({
-        title: `${plan.name} plan selected`,
-        description: 'Complete payment via Razorpay to activate. If checkout does not open, payment configuration may be pending.',
-        variant: 'success',
+      const order = await paymentsService.createOrder(plan.id);
+      const ready = await loadRazorpay();
+      if (!ready || !window.Razorpay) {
+        throw new Error('The payment window could not load. Please check your connection and try again.');
+      }
+
+      const user = getAuth().user;
+      const checkout = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency || 'INR',
+        name: 'FreshmCalc',
+        description: `${plan.name} subscription`,
+        order_id: order.orderId,
+        prefill: { email: user?.email || '', contact: user?.phone || '' },
+        notes: { planId: String(plan.id), source: 'web' },
+        theme: { color: '#206644' },
+        handler: async (response: any) => {
+          setVerifying(true);
+          try {
+            await paymentsService.verify({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+            toast({
+              title: `${plan.name} plan activated`,
+              description: 'Payment verified. Your Dubai rates and calculator are unlocked.',
+              variant: 'success',
+            });
+            await refreshUser();
+            await subQuery.refetch();
+          } catch (e: any) {
+            toast({
+              title: 'Payment received, activation pending',
+              description: apiError(e, 'If the plan does not activate in a minute, contact support@freshmcalc.com with your payment id.'),
+              variant: 'destructive',
+            });
+          } finally {
+            setVerifying(false);
+            setSubscribingId(null);
+          }
+        },
+        modal: {
+          ondismiss: () => setSubscribingId(null),
+        },
       });
-      subQuery.refetch();
+
+      checkout.on('payment.failed', (response: any) => {
+        setSubscribingId(null);
+        toast({
+          title: 'Payment failed',
+          description: response?.error?.description || 'Razorpay declined the payment. No money was deducted.',
+          variant: 'destructive',
+        });
+      });
+
+      checkout.open();
     } catch (e: any) {
+      setSubscribingId(null);
       toast({
         title: 'Checkout could not start',
         description: apiError(e, 'Payment configuration may be required. Please contact support@freshmcalc.com.'),
         variant: 'destructive',
       });
-    } finally {
-      setSubscribingId(null);
     }
   };
 
@@ -125,6 +210,19 @@ export default function Subscription() {
                 <a href="#plans">Choose a plan <ArrowRight className="h-[18px] w-[18px]" /></a>
               </Button>
             )}
+          </div>
+        </div>
+      )}
+
+      {native && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+          <Smartphone className="mt-0.5 h-5 w-5 shrink-0" />
+          <div className="text-[13px] leading-relaxed">
+            <p className="font-bold">Plans are managed on the web</p>
+            <p className="mt-0.5 text-amber-900/80 dark:text-amber-200/80">
+              This app version is a companion to your FreshmCalc account. Subscribe or renew at freshmcalc.com —
+              store in-app billing is planned for a later release.
+            </p>
           </div>
         </div>
       )}
@@ -190,10 +288,12 @@ export default function Subscription() {
                     variant={popular ? 'lime' : 'default'}
                     size="lg"
                     className="mt-6 w-full"
-                    disabled={!plan.active || isCurrent || subscribingId === plan.id}
+                    disabled={!plan.active || isCurrent || subscribingId === plan.id || verifying}
                     onClick={() => subscribe(plan)}
                   >
-                    {subscribingId === plan.id ? (
+                    {verifying && subscribingId === plan.id ? (
+                      <><Loader2 className="h-5 w-5 animate-spin" /> Verifying payment…</>
+                    ) : subscribingId === plan.id ? (
                       <><Loader2 className="h-5 w-5 animate-spin" /> Starting checkout…</>
                     ) : isCurrent ? (
                       'Current plan'
@@ -223,8 +323,9 @@ export default function Subscription() {
             <CardTitle className="text-base">Secure Razorpay payments</CardTitle>
           </CardHeader>
           <CardContent className="text-sm leading-relaxed text-muted-foreground">
-            Pay with UPI, debit/credit cards or net-banking. FreshmCalc never stores your card details — payment is
-            processed entirely by Razorpay. Your plan activates automatically once payment is confirmed.
+            Pay with UPI, debit/credit cards or net-banking. FreshmCalc never stores your card details. The plan
+            activates only after the server verifies Razorpay's payment signature — a browser redirect alone never
+            unlocks access.
           </CardContent>
         </Card>
         <Card>
@@ -236,7 +337,7 @@ export default function Subscription() {
           </CardHeader>
           <CardContent className="text-sm leading-relaxed text-muted-foreground">
             Access stays active till the end of your billing period even if you cancel. If checkout doesn't open,
-            payments may still be in test/configuration mode — write to support@freshmcalc.com and we'll activate you manually.
+            payments may still be in configuration mode — write to support@freshmcalc.com with your account email.
             {' '}See the <Link to="/pricing" className="font-bold text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">pricing page</Link> for a full feature comparison.
           </CardContent>
         </Card>

@@ -1,10 +1,17 @@
 package com.freshmcalc.controller;
 
+import com.freshmcalc.config.security.CustomerUserDetails;
 import com.freshmcalc.domain.service.PaymentService;
 import com.freshmcalc.dto.PaymentDto;
+import com.freshmcalc.exception.BadRequestException;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Subscription checkout. Prices come from the database, not the browser.
+ */
 @RestController
 @RequestMapping("/api/v1/payments")
 public class PaymentController {
@@ -15,17 +22,26 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
-    @PostMapping("/record")
-    public ResponseEntity<PaymentDto.PaymentResponse> recordPayment(
-            @RequestHeader(name = "X-User-Id", required = false) Long userId,
-            @RequestParam String razorpayOrderId,
-            @RequestParam String razorpayPaymentId,
-            @RequestParam String amount,
-            @RequestParam(required = false, defaultValue = "INR") String currency,
-            @RequestParam(required = false) String description) {
-        PaymentDto.PaymentResponse res = paymentService.toResponse(
-            paymentService.recordPayment(userId, razorpayOrderId, razorpayPaymentId,
-                new java.math.BigDecimal(amount), currency, description));
-        return ResponseEntity.ok(res);
+    /** Step 1 — create a Razorpay order for a plan. */
+    @PostMapping("/order")
+    public ResponseEntity<PaymentDto.OrderResponse> createOrder(
+            @AuthenticationPrincipal CustomerUserDetails principal,
+            @Valid @RequestBody PaymentDto.CreateOrderRequest req) {
+        return ResponseEntity.ok(paymentService.createOrder(requireUserId(principal), req.planId()));
+    }
+
+    /** Step 2 — verify the checkout signature; only then activate the plan. */
+    @PostMapping("/verify")
+    public ResponseEntity<PaymentDto.PaymentResponse> verifyPayment(
+            @AuthenticationPrincipal CustomerUserDetails principal,
+            @Valid @RequestBody PaymentDto.VerifyPaymentRequest req) {
+        return ResponseEntity.ok(paymentService.verifyAndActivate(requireUserId(principal), req));
+    }
+
+    private Long requireUserId(CustomerUserDetails principal) {
+        if (principal == null) {
+            throw new BadRequestException("Authentication required.");
+        }
+        return principal.getUser().getId();
     }
 }

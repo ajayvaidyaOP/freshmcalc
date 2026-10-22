@@ -38,6 +38,10 @@ dependencies {
 
     // Payments + OpenAPI docs
     implementation 'com.razorpay:razorpay-java:1.4.5'
+    // Razorpay's SDK exposes org.json types in its API (orders + signature
+    // verification), so declare it explicitly instead of relying on a
+    // transitive runtime dependency.
+    implementation 'org.json:json:20240303'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

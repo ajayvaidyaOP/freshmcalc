@@ -2,6 +2,7 @@ package com.freshmcalc.domain.service;
 
 import com.freshmcalc.domain.entity.Calculation;
 import com.freshmcalc.domain.entity.CalculationItem;
+import com.freshmcalc.domain.entity.CalculationStatus;
 import com.freshmcalc.domain.entity.CostGroup;
 import com.freshmcalc.domain.entity.User;
 import com.freshmcalc.domain.repository.CalculationRepository;
@@ -12,6 +13,7 @@ import com.freshmcalc.exception.ResourceNotFoundException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -65,9 +67,25 @@ public class CalculationService {
         calc.setConversionSource(req.conversionSource());
         calc.setFormulaVersion(FORMULA_VERSION);
         calc.setAssumptions(req.assumptions());
-        calc.setStatus(calc.getStatus());
+        calc.setStatus(CalculationStatus.DRAFT);
 
         BigDecimal conversion = req.conversionRateInrToAed() != null ? req.conversionRateInrToAed() : BigDecimal.ONE;
+
+        // The goods themselves are always part of the cost sheet. Older clients
+        // (and API callers) may send only expense items, so add the purchase
+        // line from the unit cost instead of silently landing at zero cost.
+        List<CalculationDto.CalculationItemRequest> itemRequests =
+            new ArrayList<>(req.items() != null ? req.items() : List.of());
+        boolean hasPurchaseItem = itemRequests.stream()
+            .anyMatch(i -> "PURCHASE".equalsIgnoreCase(i.costGroup()));
+        if (!hasPurchaseItem) {
+            BigDecimal goodsCost = computePurchaseAmount(
+                req.productCostPerUnit(), req.productCostUnit(), req.numberOfBoxes(), req.netWeightKg());
+            if (goodsCost.compareTo(BigDecimal.ZERO) > 0) {
+                itemRequests.add(0, new CalculationDto.CalculationItemRequest(
+                    "PRODUCT", "Product purchase", goodsCost, "INR", "PURCHASE"));
+            }
+        }
 
         BigDecimal totalPurchase = BigDecimal.ZERO;
         BigDecimal totalOrigin = BigDecimal.ZERO;
@@ -75,10 +93,12 @@ public class CalculationService {
         BigDecimal totalDestination = BigDecimal.ZERO;
         BigDecimal totalCommissionTax = BigDecimal.ZERO;
 
-        for (CalculationDto.CalculationItemRequest itemReq : (req.items() != null ? req.items() : List.of())) {
-            BigDecimal amount = itemReq.amount();
+        for (CalculationDto.CalculationItemRequest itemReq : itemRequests) {
+            BigDecimal amount = itemReq.amount() != null ? itemReq.amount() : BigDecimal.ZERO;
             BigDecimal amountAed = convert(amount, itemReq.currency(), conversion);
             CostGroup group = parseGroup(itemReq.costGroup());
+            // Group totals are kept in INR so the final conversion happens once.
+            BigDecimal amountInr = toInr(amount, itemReq.currency(), conversion);
 
             CalculationItem item = new CalculationItem();
             item.setCalculation(calc);
@@ -91,11 +111,11 @@ public class CalculationService {
             calc.getItems().add(item);
 
             switch (group) {
-                case PURCHASE -> totalPurchase = totalPurchase.add(amount);
-                case ORIGIN -> totalOrigin = totalOrigin.add(amount);
-                case FREIGHT -> totalFreight = totalFreight.add(amount);
-                case DESTINATION -> totalDestination = totalDestination.add(amount);
-                case COMMISSION_TAX -> totalCommissionTax = totalCommissionTax.add(amount);
+                case PURCHASE -> totalPurchase = totalPurchase.add(amountInr);
+                case ORIGIN -> totalOrigin = totalOrigin.add(amountInr);
+                case FREIGHT -> totalFreight = totalFreight.add(amountInr);
+                case DESTINATION -> totalDestination = totalDestination.add(amountInr);
+                case COMMISSION_TAX -> totalCommissionTax = totalCommissionTax.add(amountInr);
             }
         }
 
@@ -118,11 +138,9 @@ public class CalculationService {
             costPerTonne = totalLandedAed.divide(req.netWeightKg().divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP), 4, RoundingMode.HALF_UP);
         }
 
-        BigDecimal expectedRevenue = BigDecimal.ZERO;
-        if (req.expectedDubaiSellingPricePerUnit() != null && req.numberOfBoxes() != null) {
-            expectedRevenue = req.expectedDubaiSellingPricePerUnit()
-                .multiply(BigDecimal.valueOf(req.numberOfBoxes()));
-        }
+        BigDecimal expectedRevenue = computeExpectedRevenue(
+            req.expectedDubaiSellingPricePerUnit(), req.expectedDubaiSellingPriceUnit(),
+            req.numberOfBoxes(), req.netWeightKg());
         BigDecimal grossProfit = expectedRevenue.subtract(totalLandedAed);
         BigDecimal profitPerBox = BigDecimal.ZERO;
         if (req.numberOfBoxes() != null && req.numberOfBoxes() > 0) {
@@ -159,16 +177,25 @@ public class CalculationService {
         BigDecimal totalFreight = BigDecimal.ZERO;
         BigDecimal totalDestination = BigDecimal.ZERO;
         BigDecimal totalCommissionTax = BigDecimal.ZERO;
+        BigDecimal conversion = calc.getConversionRateInrToAed() != null ? calc.getConversionRateInrToAed() : BigDecimal.ONE;
+        boolean hasPurchaseItem = false;
         for (CalculationItem item : calc.getItems()) {
+            BigDecimal amountInr = toInr(item.getAmount(), item.getCurrency(), conversion);
             switch (item.getCostGroup()) {
-                case PURCHASE -> totalPurchase = totalPurchase.add(item.getAmount());
-                case ORIGIN -> totalOrigin = totalOrigin.add(item.getAmount());
-                case FREIGHT -> totalFreight = totalFreight.add(item.getAmount());
-                case DESTINATION -> totalDestination = totalDestination.add(item.getAmount());
-                case COMMISSION_TAX -> totalCommissionTax = totalCommissionTax.add(item.getAmount());
+                case PURCHASE -> { totalPurchase = totalPurchase.add(amountInr); hasPurchaseItem = true; }
+                case ORIGIN -> totalOrigin = totalOrigin.add(amountInr);
+                case FREIGHT -> totalFreight = totalFreight.add(amountInr);
+                case DESTINATION -> totalDestination = totalDestination.add(amountInr);
+                case COMMISSION_TAX -> totalCommissionTax = totalCommissionTax.add(amountInr);
             }
         }
-        BigDecimal conversion = calc.getConversionRateInrToAed() != null ? calc.getConversionRateInrToAed() : BigDecimal.ONE;
+        // Legacy rows saved before expense items existed: derive the purchase
+        // cost from the stored unit cost so their landed cost is not zero.
+        if (!hasPurchaseItem) {
+            totalPurchase = totalPurchase.add(computePurchaseAmount(
+                calc.getProductCostPerUnit(), calc.getProductCostUnit(),
+                calc.getNumberOfBoxes(), calc.getNetWeightKg()));
+        }
         BigDecimal totalShipment = totalPurchase.add(totalOrigin).add(totalFreight).add(totalDestination)
             .add(totalCommissionTax);
         BigDecimal totalLandedAed = convert(totalShipment, "INR", conversion);
@@ -188,11 +215,9 @@ public class CalculationService {
                 4, RoundingMode.HALF_UP);
         }
 
-        BigDecimal expectedRevenue = BigDecimal.ZERO;
-        if (calc.getExpectedDubaiSellingPricePerUnit() != null && calc.getNumberOfBoxes() != null) {
-            expectedRevenue = calc.getExpectedDubaiSellingPricePerUnit()
-                .multiply(BigDecimal.valueOf(calc.getNumberOfBoxes()));
-        }
+        BigDecimal expectedRevenue = computeExpectedRevenue(
+            calc.getExpectedDubaiSellingPricePerUnit(), calc.getExpectedDubaiSellingPriceUnit(),
+            calc.getNumberOfBoxes(), calc.getNetWeightKg());
         BigDecimal grossProfit = expectedRevenue.subtract(totalLandedAed);
         BigDecimal profitPerBox = BigDecimal.ZERO;
         if (calc.getNumberOfBoxes() != null && calc.getNumberOfBoxes() > 0) {
@@ -217,11 +242,42 @@ public class CalculationService {
         calculationRepository.delete(calc);
     }
 
+    /**
+     * Revenue = Dubai price × quantity. Supports both per-box and per-kg price
+     * units so a per-kg quote is not multiplied by the box count.
+     */
+    private BigDecimal computeExpectedRevenue(BigDecimal price, String unit, Integer boxes, BigDecimal netWeightKg) {
+        if (price == null) return BigDecimal.ZERO;
+        if ("per kg".equalsIgnoreCase(unit)) {
+            return netWeightKg != null ? price.multiply(netWeightKg) : BigDecimal.ZERO;
+        }
+        return boxes != null ? price.multiply(BigDecimal.valueOf(boxes)) : BigDecimal.ZERO;
+    }
+
+    /** Purchase cost of the goods itself, in INR. */
+    private BigDecimal computePurchaseAmount(BigDecimal costPerUnit, String unit, Integer boxes, BigDecimal netWeightKg) {
+        if (costPerUnit == null) return BigDecimal.ZERO;
+        if ("per kg".equalsIgnoreCase(unit)) {
+            return netWeightKg != null ? costPerUnit.multiply(netWeightKg) : BigDecimal.ZERO;
+        }
+        return boxes != null ? costPerUnit.multiply(BigDecimal.valueOf(boxes)) : BigDecimal.ZERO;
+    }
+
     private BigDecimal convert(BigDecimal amount, String currency, BigDecimal rate) {
         if (amount == null) return BigDecimal.ZERO;
         if ("AED".equalsIgnoreCase(currency)) return amount;
         if (rate == null) rate = BigDecimal.ONE;
         return amount.multiply(rate).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    /** Convert a line amount to INR (the cost sheet's canonical currency). */
+    private BigDecimal toInr(BigDecimal amount, String currency, BigDecimal rate) {
+        if (amount == null) return BigDecimal.ZERO;
+        if ("AED".equalsIgnoreCase(currency)) {
+            if (rate == null || rate.compareTo(BigDecimal.ZERO) == 0) return amount;
+            return amount.divide(rate, 4, RoundingMode.HALF_UP);
+        }
+        return amount;
     }
 
     private CostGroup parseGroup(String group) {

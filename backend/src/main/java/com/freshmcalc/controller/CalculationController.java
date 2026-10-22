@@ -1,12 +1,19 @@
 package com.freshmcalc.controller;
 
+import com.freshmcalc.config.security.CustomerUserDetails;
 import com.freshmcalc.domain.service.CalculationService;
 import com.freshmcalc.dto.CalculationDto;
+import com.freshmcalc.exception.BadRequestException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+/**
+ * Export cost sheets for the signed-in user. Identity always comes from the
+ * verified JWT principal — never from a client-supplied header.
+ */
 @RestController
 @RequestMapping("/api/v1/calculations")
 public class CalculationController {
@@ -19,32 +26,36 @@ public class CalculationController {
 
     @PostMapping
     public ResponseEntity<CalculationDto.CalculationResponse> createCalculation(
-            @RequestHeader(name = "X-User-Id", required = false) Long userId,
+            @AuthenticationPrincipal CustomerUserDetails principal,
             @Valid @RequestBody CalculationDto.CalculationRequest req) {
-        if (userId == null) {
-            throw new IllegalArgumentException("X-User-Id header is required");
-        }
-        return ResponseEntity.ok(calculationService.createCalculation(userId, req));
+        return ResponseEntity.ok(calculationService.createCalculation(requireUserId(principal), req));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<CalculationDto.CalculationResponse> getCalculation(
-            @PathVariable Long id,
-            @RequestHeader(name = "X-User-Id", required = false) Long userId) {
-        return ResponseEntity.ok(calculationService.getCalculation(id, userId));
+            @AuthenticationPrincipal CustomerUserDetails principal,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(calculationService.getCalculation(id, requireUserId(principal)));
     }
 
     @GetMapping
     public ResponseEntity<List<CalculationDto.CalculationResponse>> listCalculations(
-            @RequestHeader(name = "X-User-Id", required = false) Long userId) {
-        return ResponseEntity.ok(calculationService.listCalculations(userId));
+            @AuthenticationPrincipal CustomerUserDetails principal) {
+        return ResponseEntity.ok(calculationService.listCalculations(requireUserId(principal)));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCalculation(
-            @PathVariable Long id,
-            @RequestHeader(name = "X-User-Id", required = false) Long userId) {
-        calculationService.deleteCalculation(id, userId);
+            @AuthenticationPrincipal CustomerUserDetails principal,
+            @PathVariable Long id) {
+        calculationService.deleteCalculation(id, requireUserId(principal));
         return ResponseEntity.ok().build();
+    }
+
+    private Long requireUserId(CustomerUserDetails principal) {
+        if (principal == null) {
+            throw new BadRequestException("Authentication required.");
+        }
+        return principal.getUser().getId();
     }
 }

@@ -1,0 +1,46 @@
+{
+  "id": "/?source=freshmcalc-app",
+  "name": "FreshmCalc — Dubai Market Rates & Export Costing",
+  "short_name": "FreshmCalc",
+  "description": "Live Dubai wholesale fruit & vegetable rates in AED, plus a complete India to Dubai export cost calculator with CHA, freight and commission.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#f5faf7",
+  "theme_color": "#0a2519",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "finance", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "New export costing",
+      "short_name": "Calculator",
+      "description": "Cost a consignment and see Dubai profit",
+      "url": "/calculator",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Dubai live rates",
+      "short_name": "Rates",
+      "description": "Today's AED wholesale prices",
+      "url": "/rates",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Saved cost sheets",
+      "short_name": "Sheets",
+      "description": "Your saved export calculations",
+      "url": "/calculations",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    }
+  ]
+}

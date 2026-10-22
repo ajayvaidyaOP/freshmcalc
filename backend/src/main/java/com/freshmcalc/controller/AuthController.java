@@ -1,9 +1,12 @@
 package com.freshmcalc.controller;
 
+import com.freshmcalc.config.security.CustomerUserDetails;
 import com.freshmcalc.domain.service.AuthService;
 import com.freshmcalc.dto.AuthDto;
+import com.freshmcalc.exception.BadRequestException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -24,6 +27,14 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthDto.AuthResponse> login(@Valid @RequestBody AuthDto.LoginRequest req) {
         return ResponseEntity.ok(authService.login(req));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<AuthDto.MeResponse> me(@AuthenticationPrincipal CustomerUserDetails principal) {
+        if (principal == null) {
+            throw new BadRequestException("Authentication required.");
+        }
+        return ResponseEntity.ok(authService.me(principal.getUsername()));
     }
 
     @PostMapping("/forgot-password")

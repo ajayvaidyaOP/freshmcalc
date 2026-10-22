@@ -24,6 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/EmptyState';
+import { InstallPrompt } from '@/components/common/InstallPrompt';
 import { FreshnessTag, ProductAvatar } from '@/components/common/ProductAvatar';
 import { ratesService } from '@/services/rates.service';
 import { getAuth } from '@/lib/api';
@@ -112,6 +113,8 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <InstallPrompt />
 
       {/* Upgrade strip */}
       {!hasPlan && (

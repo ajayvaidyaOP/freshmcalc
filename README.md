@@ -7,6 +7,10 @@ Traders see publisher-verified Dubai wholesale prices, run a full landed-cost ca
 (product, packing, transport, CHA, freight, insurance, duties, commission — INR → AED),
 and export professional PDF quotations for buyers.
 
+The same app installs on a phone (PWA today, Capacitor wrappers for the Play Store and
+App Store — see [`docs/mobile-apps.md`](docs/mobile-apps.md)), and runs as a Docker stack
+for a subscription business.
+
 > **Business rule (do not change):** every selling price shown in the app is a **Dubai, UAE
 > market rate in AED**. India is only the sourcing/origin market. Indian domestic prices are
 > never presented as Dubai rates.
@@ -21,10 +25,12 @@ and export professional PDF quotations for buyers.
 4. [Environment variables reference](#environment-variables-reference)
 5. [Admin account — how to log in as admin](#admin-account--how-to-log-in-as-admin)
 6. [Demo mode (no backend needed)](#demo-mode-no-backend-needed)
-7. [Useful development commands](#useful-development-commands)
-8. [Part 2 — Deploy with Docker (step by step)](#part-2--deploy-with-docker-step-by-step)
-9. [Part 3 — Production checklist](#part-3--production-checklist)
-10. [Troubleshooting](#troubleshooting)
+7. [The export calculator — how the maths works](#the-export-calculator--how-the-maths-works)
+8. [Phone app — install now, stores next](#phone-app--install-now-stores-next)
+9. [Useful development commands](#useful-development-commands)
+10. [Part 2 — Deploy with Docker (and why Docker)](#part-2--deploy-with-docker-and-why-docker)
+11. [Part 3 — Production checklist](#part-3--production-checklist)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -33,10 +39,12 @@ and export professional PDF quotations for buyers.
 | Layer | Technology |
 |---|---|
 | Frontend | React 18 + Vite 5 + TypeScript, Tailwind CSS 3, shadcn/ui (Radix), React Router 6, TanStack Query, React Hook Form + Zod, Recharts, jsPDF |
+| Mobile | Installable PWA (manifest + service worker) and Capacitor 7 wrappers for Android/iOS |
 | Backend | Java 21, Spring Boot 3.3.5 (Web, Security/JWT, Data JPA, Validation, Actuator), Gradle 8.11 (wrapper included) |
 | Database | PostgreSQL 16 + Flyway migrations (`backend/src/main/resources/db/migration`) |
-| Payments | Razorpay (`razorpay-java`), test mode by default |
+| Payments | Razorpay orders + server-side signature verification (`razorpay-java`), test mode by default |
 | API docs | springdoc OpenAPI — Swagger UI at `/swagger-ui.html` |
+| Tests | Vitest for the costing engine (`frontend/src/lib/export-calc.test.ts`) |
 | Deployment | Docker + Docker Compose + Nginx (`infrastructure/`) |
 
 **Frontend experience:** green design system (deep-forest palette, Sora + Manrope fonts, light/dark
@@ -48,9 +56,16 @@ modes), fully responsive — phone (app-style bottom navigation), tablet (icon r
 ```
 freshmcalc/
 ├── frontend/            React app (Vite)                 → http://localhost:5173
+│   ├── src/lib/export-calc.ts        the costing engine (+ tests)
+│   ├── src/lib/expense-presets.ts    editable CHA/freight/commission defaults
+│   ├── public/manifest.webmanifest   installable app metadata
+│   ├── public/sw.js                  offline app shell
+│   ├── capacitor.config.ts           Play Store / App Store wrapper
+│   ├── android/                      generated Android Studio project
+│   └── ios/                          generated Xcode project
 ├── backend/             Spring Boot API (Gradle)         → http://localhost:8080/api/v1
 ├── infrastructure/      docker-compose.yml, nginx, backup scripts (deployment)
-├── docs/                setup.md · razorpay.md · deployment.md
+├── docs/                setup.md · razorpay.md · deployment.md · costing-formula.md · mobile-apps.md
 └── .vscode/             Run/debug config, tasks, recommended extensions (committed)
 ```
 
@@ -285,6 +300,60 @@ running, the login page detects it and offers the demo automatically.
 
 ---
 
+## The export calculator — how the maths works
+
+The calculator is now a three-step sheet instead of a wall of fields:
+
+1. **Your shipment** — product, purchase cost in India, boxes, weight per box.
+   Quick-start chips load example numbers you can overwrite.
+2. **Your Dubai selling price** — AED per box or per kg; the app offers the
+   latest published Dubai rate for that product with one tap.
+3. **Your export costs** — every head is visible and editable: packing, inland
+   transport, port/THC, **CHA & documents**, ocean freight, marine insurance,
+   Dubai clearing, mandi commission, bank charges and optional UAE duty.
+   Switch any head on/off, change per-box vs per-shipment, or add your own.
+
+Live results appear instantly (and in a sticky bar on phones):
+
+```
+total landed cost = purchase + origin + freight + destination + commission & tax
+profit            = (Dubai price × boxes) − total landed cost
+margin %          = profit ÷ Dubai sale value
+ROI %             = profit ÷ landed cost
+break-even / box  = landed cost ÷ boxes
+```
+
+Costs can be entered in **INR or AED**, as a **fixed amount or a percentage**
+(of purchase, freight or sale value). Everything is converted at your FX rate,
+rounded half-up like the Java backend, and the full breakdown goes into the
+saved sheet and the PDF quotation. Worked example + every formula:
+[`docs/costing-formula.md`](docs/costing-formula.md).
+
+> The old screen only sent the purchase cost to the server, so “landed cost”
+> was really just the goods. That gap is fixed: the purchase line is now added
+> by the server automatically, and each expense head is stored with its group.
+
+---
+
+## Phone app — install now, stores next
+
+Open the site on a phone:
+
+- **Android / Chrome** → “Install app” prompt (or ⋮ → *Install app*).
+- **iPhone / Safari** → Share → *Add to Home Screen*.
+- Inside the app, **Account → Get the app** explains both paths.
+
+What you get immediately: home-screen icon, full-screen layout, offline shell,
+faster loads and a calculator draft that survives app switching.
+
+For the actual store listings, the Capacitor wrappers are configured
+(`com.freshmcalc.app`, native splash/status bar, back-button handling). The
+build and submission steps — signing keys, store assets, review rules and the
+iOS/Android payment rules for subscriptions — are in
+[`docs/mobile-apps.md`](docs/mobile-apps.md).
+
+---
+
 ## Useful development commands
 
 | Task | Command |
@@ -295,6 +364,10 @@ running, the login page detects it and offers the demo automatically.
 | Frontend — dev server | `cd frontend && npm run dev` → http://localhost:5173 |
 | Frontend — production build | `cd frontend && npm run build` → `frontend/dist/` |
 | Frontend — preview build | `cd frontend && npm run preview` |
+| Frontend — tests | `cd frontend && npm test` (costing engine, 9 cases) |
+| Mobile — native build | `cd frontend && npm run build:app` |
+| Mobile — Android | `cd frontend && npm run app:android` (needs Android Studio) |
+| Mobile — iOS | `cd frontend && npm run app:ios` (needs macOS + Xcode) |
 | Database only | `docker compose -f infrastructure/docker-compose.yml up -d postgres` |
 | Stop database | `docker compose -f infrastructure/docker-compose.yml down` *(add `-v` to also delete data)* |
 
@@ -303,7 +376,40 @@ including subscription plans ₹499/₹1,299/₹4,999). Never edit an applied mi
 
 ---
 
-## Part 2 — Deploy with Docker (step by step)
+## Part 2 — Deploy with Docker (and why Docker)
+
+### Do you actually need Docker?
+
+| Situation | Docker needed? |
+|---|---|
+| Writing code locally in VS Code | **Recommended**, but only for PostgreSQL. Run the backend with Gradle and the frontend with Vite (Part 1). |
+| Showing the UI to someone | No — demo mode works with no server at all. |
+| Putting the app on Play Store / App Store | No, but you need the **backend deployed** somewhere, because the app talks to the API. Docker is the simplest way to host it. |
+| Running the paid product for real users | **Yes, strongly recommended.** |
+
+For a subscription business the Docker stack buys you:
+
+- **Reproducible deploys** — one image builds the same on your laptop and the
+  server; no “works on my machine” JDK/Node/Postgres drift.
+- **One command to ship** — `docker compose up -d --build` updates the API,
+  web app and proxy together; rollback is rebuilding the previous tag.
+- **Isolation and safety** — Postgres is bound to `127.0.0.1` only, the API is
+  reachable only through Nginx, and secrets live in `.env` on the server.
+- **Real health checks** — Compose waits for Postgres, then the API, then the
+  web app before routing traffic.
+- **A clean path to scale** — move Postgres to a managed service, then run two
+  backend containers behind Nginx without changing application code.
+- **Backups that are just a cron job** — `infrastructure/scripts/backup.sh`
+  dumps the database volume without touching the app.
+- **Consistent native + web** — the Play/App Store shells call the same
+  containerised API, so there is one source of truth for calculations.
+
+It costs roughly **₹400–1,200/month** on a small VPS (2 vCPU / 4 GB is plenty
+for the first few hundred traders). If you would rather not run Docker, a
+managed platform works too — but keep HTTPS, backups and the loopback-only
+database rule.
+
+### Steps
 
 This runs the **whole stack** (PostgreSQL + backend + frontend + Nginx) with one command —
 no local JDK/Node/Postgres needed on the server, only Docker.
@@ -341,9 +447,12 @@ RAZORPAY_TEST_MODE=false
 
 ```bash
 docker compose up --build -d
-docker compose ps          # all 4 containers should be Up (postgres: healthy)
+docker compose ps          # postgres/backend/frontend healthy, nginx up
 docker compose logs -f backend   # watch for "Started FreshmcalcApplication" (Ctrl+C to exit logs)
 ```
+
+The first build takes a few minutes (Gradle + npm). Later deploys reuse the
+dependency layers, so only changed code is rebuilt.
 
 (VS Code equivalent: task **`Full stack: Docker Compose up (build)`**.)
 
@@ -351,15 +460,19 @@ docker compose logs -f backend   # watch for "Started FreshmcalcApplication" (Ct
 
 | Check | URL / command |
 |---|---|
-| Website | <http://localhost> (Nginx) or <http://localhost:5173> (frontend container direct) |
+| Website | <http://localhost> (Nginx) |
 | Health | <http://localhost/health> → `{"status":"UP"}` |
-| API | <http://localhost:8080/api/v1/rates> |
+| API (server only) | <http://127.0.0.1:8080/api/v1/rates> |
 | Admin login | The `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `infrastructure/.env` |
+
+Postgres and the raw API are published on `127.0.0.1` only — they are not
+reachable from the internet even if the firewall is misconfigured.
 
 ### Day-2 operations
 
 ```bash
 docker compose logs -f              # follow all logs
+docker compose ps                   # health status of every service
 docker compose restart backend      # restart one service
 docker compose down                 # stop everything (data volume is kept)
 # Update to the latest code:

@@ -5,21 +5,27 @@
       "label": "DB: Start PostgreSQL (Docker)",
       "type": "shell",
       "command": "docker compose -f infrastructure/docker-compose.yml up -d postgres",
-      "options": { "cwd": "${workspaceFolder}" },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
       "label": "Frontend: npm install",
       "type": "shell",
       "command": "npm install",
-      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
       "problemMatcher": []
     },
     {
       "label": "Frontend: npm run dev (port 5173)",
       "type": "shell",
       "command": "npm run dev",
-      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
       "isBackground": true,
       "problemMatcher": []
     },
@@ -27,14 +33,45 @@
       "label": "Full stack: Docker Compose up (build)",
       "type": "shell",
       "command": "docker compose up --build -d",
-      "options": { "cwd": "${workspaceFolder}/infrastructure" },
+      "options": {
+        "cwd": "${workspaceFolder}/infrastructure"
+      },
       "problemMatcher": []
     },
     {
       "label": "Full stack: Docker Compose down",
       "type": "shell",
       "command": "docker compose down",
-      "options": { "cwd": "${workspaceFolder}/infrastructure" },
+      "options": {
+        "cwd": "${workspaceFolder}/infrastructure"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Frontend: tests (costing engine)",
+      "type": "shell",
+      "command": "npm test",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Mobile: sync Android (build + cap sync)",
+      "type": "shell",
+      "command": "npm run build:app && npx cap sync android",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Mobile: sync iOS (build + cap sync)",
+      "type": "shell",
+      "command": "npm run build:app && npx cap sync ios",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
       "problemMatcher": []
     }
   ]

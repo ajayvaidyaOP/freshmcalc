@@ -29,6 +29,25 @@ public class AuthDto {
         String status
     ) {}
 
+    /**
+     * Full signed-in profile used by the app shell: identity, plan
+     * entitlements and the active subscription. Powers lock/unlock in the UI.
+     */
+    public record MeResponse(
+        Long id,
+        String email,
+        String firstName,
+        String lastName,
+        String phone,
+        String company,
+        String country,
+        String city,
+        String role,
+        String status,
+        SubscriptionDto.PlanEntitlements planEntitlements,
+        SubscriptionDto.SubscriptionResponse activeSubscription
+    ) {}
+
     public record ForgotPasswordRequest(@Email @NotBlank String email) {}
     public record ResetPasswordRequest(
         @NotBlank String token,

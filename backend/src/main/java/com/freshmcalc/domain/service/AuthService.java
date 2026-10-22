@@ -21,11 +21,16 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final SubscriptionService subscriptionService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtUtil jwtUtil,
+                       SubscriptionService subscriptionService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.subscriptionService = subscriptionService;
     }
 
     public AuthDto.AuthResponse register(AuthDto.RegisterRequest req) {
@@ -66,5 +71,24 @@ public class AuthService {
     public User getCurrentUser(String email) {
         return userRepository.findByEmail(email)
             .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+    }
+
+    /** Profile + live entitlements for the signed-in user. */
+    public AuthDto.MeResponse me(String email) {
+        User user = getCurrentUser(email);
+        return new AuthDto.MeResponse(
+            user.getId(),
+            user.getEmail(),
+            user.getFirstName(),
+            user.getLastName(),
+            user.getPhone(),
+            user.getCompany(),
+            user.getCountry(),
+            user.getCity(),
+            user.getRole() != null ? user.getRole().name() : null,
+            user.getStatus(),
+            subscriptionService.getEntitlements(user.getId()),
+            subscriptionService.getActiveSubscriptionOrNull(user.getId())
+        );
     }
 }

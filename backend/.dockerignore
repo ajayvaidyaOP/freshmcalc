@@ -1,0 +1,12 @@
+# Never ship local build output or secrets into the image context
+build/
+.gradle/
+out/
+*.log
+.env
+.env.*
+!.env.example
+.git
+.idea
+*.iml
+src/test/

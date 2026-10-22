@@ -101,7 +101,24 @@ cp .env.example .env   # edit credentials
 docker compose up --build
 ```
 
-Services: postgres (5432), backend (8080), frontend (5173), nginx (80/443).
+Services: postgres (127.0.0.1:5432), backend (127.0.0.1:8080), frontend
+(127.0.0.1:5173), nginx (public 80/443). Compose waits for each health check
+before starting the next service.
+
+`POSTGRES_INITDB_ARGS`, log rotation (10 MB × 3 per service) and
+`stop_grace_period` are already configured — see
+`infrastructure/docker-compose.yml`.
+
+## 4b. App builds (PWA + stores)
+
+```bash
+cd frontend
+npm run build          # web / PWA
+npm run build:app      # native build for the store shells
+npm test               # costing engine (vitest)
+```
+
+Full store submission steps: `docs/mobile-apps.md`.
 
 ## 5. Razorpay test-mode setup
 
@@ -124,7 +141,8 @@ Live market rates displayed to subscribers must be **Dubai market rates (AED)**,
 5. Admin publishes a Dubai green chilli rate.
 6. Customers see AED pricing with correct unit and timestamp.
 7. Indian domestic rates never misrepresented as Dubai rates.
-8. Calculator totals match verified financial test cases.
+8. Calculator totals match the worked example in `docs/costing-formula.md`
+   (verified by `frontend/src/lib/export-calc.test.ts`).
 9. Currency conversion and commission calculations correct.
 10. Historical calculations preserve original values.
 11. Users cannot access another customer's calculations.
@@ -133,3 +151,7 @@ Live market rates displayed to subscribers must be **Dubai market rates (AED)**,
 14. PDF quotations contain correct cost breakdown.
 15. Admin manages ports, routes, freight quotations.
 16. Missing market-data integrations clearly identified, not faked.
+17. Installable app: manifest + service worker load, `/get-app` shows both
+    install paths, API responses are never cached by the service worker.
+18. Native shells build (`npm run build:app` + `npx cap sync`) and the
+    calculator draft survives an app restart.

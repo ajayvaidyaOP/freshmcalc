@@ -177,31 +177,52 @@ function computeDemoCalculation(body: any) {
   const boxes = Number(body.numberOfBoxes) || 0;
   const netKg = Number(body.netWeightKg) || 0;
   const fx = Number(body.conversionRateInrToAed) || 0.044;
-  const purchaseInr =
-    body.productCostUnit === 'per kg' ? Number(body.productCostPerUnit) * netKg : Number(body.productCostPerUnit) * boxes;
-  // Demo-only simplified costing: +22% combined origin/freight/destination expenses.
-  const totalShipmentInr = purchaseInr * 1.22;
+  const items: any[] = Array.isArray(body.items) ? body.items : [];
+
+  const purchaseInr = items.length
+    ? items.filter((i) => i.costGroup === 'PURCHASE').reduce((s, i) => s + Number(i.amount || 0), 0)
+    : body.productCostUnit === 'per kg'
+      ? Number(body.productCostPerUnit) * netKg
+      : Number(body.productCostPerUnit) * boxes;
+
+  const groupTotal = (group: string) =>
+    items.filter((i) => i.costGroup === group).reduce((s, i) => s + Number(i.amount || 0), 0);
+
+  const totalOriginInr = groupTotal('ORIGIN');
+  const totalFreightInr = groupTotal('FREIGHT');
+  const totalDestinationInr = groupTotal('DESTINATION');
+  const totalCommissionTaxInr = groupTotal('COMMISSION_TAX');
+
+  const totalShipmentInr =
+    purchaseInr + totalOriginInr + totalFreightInr + totalDestinationInr + totalCommissionTaxInr;
   const landedAed = totalShipmentInr * fx;
   const revenueAed =
     body.expectedDubaiSellingPriceUnit === 'per kg'
       ? Number(body.expectedDubaiSellingPricePerUnit) * netKg
       : Number(body.expectedDubaiSellingPricePerUnit) * boxes;
   const profit = revenueAed - landedAed;
+
   return {
     ...body,
     id: Date.now(),
     referenceNumber: `FMC-DEMO-${Math.floor(1000 + Math.random() * 9000)}`,
-    totalPurchaseInr: purchaseInr,
-    totalShipmentCostInr: totalShipmentInr,
+    totalPurchaseInr: Number(purchaseInr.toFixed(2)),
+    totalOriginInr: Number(totalOriginInr.toFixed(2)),
+    totalFreightInr: Number(totalFreightInr.toFixed(2)),
+    totalDestinationInr: Number(totalDestinationInr.toFixed(2)),
+    totalCommissionTaxInr: Number(totalCommissionTaxInr.toFixed(2)),
+    totalShipmentCostInr: Number(totalShipmentInr.toFixed(2)),
     totalLandedCostAed: Number(landedAed.toFixed(2)),
     costPerBoxAed: boxes > 0 ? Number((landedAed / boxes).toFixed(2)) : 0,
     costPerKgAed: netKg > 0 ? Number((landedAed / netKg).toFixed(2)) : 0,
     costPerTonneAed: netKg > 0 ? Number(((landedAed / netKg) * 1000).toFixed(2)) : 0,
     expectedRevenueAed: Number(revenueAed.toFixed(2)),
     grossProfitAed: Number(profit.toFixed(2)),
+    profitPerBoxAed: boxes > 0 ? Number((profit / boxes).toFixed(2)) : 0,
     profitMarginPercent: revenueAed > 0 ? Number(((profit / revenueAed) * 100).toFixed(2)) : 0,
+    items,
     createdAt: new Date().toISOString(),
-    status: 'SAVED',
+    status: 'DRAFT',
   };
 }
 

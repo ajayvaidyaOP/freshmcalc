@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { getAuth } from '@/lib/api';
+import { USER_EVENT, getAuth, refreshUser } from '@/lib/api';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
 import { MobileNav } from './MobileNav';
@@ -19,7 +19,22 @@ export function MainLayout() {
   const [collapsed, setCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const location = useLocation();
-  const { user } = getAuth();
+  const [user, setUser] = React.useState<any>(() => getAuth().user);
+
+  // Refresh profile + plan entitlements on mount and whenever a payment
+  // completes, so locks disappear without needing a re-login.
+  React.useEffect(() => {
+    let alive = true;
+    refreshUser().then((fresh) => {
+      if (alive && fresh) setUser(fresh);
+    });
+    const onUser = (event: Event) => setUser((event as CustomEvent).detail);
+    window.addEventListener(USER_EVENT, onUser);
+    return () => {
+      alive = false;
+      window.removeEventListener(USER_EVENT, onUser);
+    };
+  }, []);
 
   // Close the drawer whenever the route changes; lock body scroll while open.
   React.useEffect(() => setMobileOpen(false), [location.pathname]);

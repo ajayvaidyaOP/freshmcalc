@@ -41,11 +41,18 @@ public class SubscriptionService {
             .map(this::toResponse).collect(Collectors.toList());
     }
 
-    public SubscriptionDto.SubscriptionResponse subscribe(Long userId, SubscriptionDto.CreateSubscriptionRequest req) {
+    /**
+     * Activate a plan after a verified payment. Never call this from a public
+     * endpoint without a server-side payment verification step.
+     */
+    public SubscriptionDto.SubscriptionResponse activatePlan(Long userId, Long planId) {
+        if (userId == null || planId == null) {
+            throw new BadRequestException("User and plan are required to activate a subscription.");
+        }
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
-        SubscriptionPlan plan = planRepository.findById(req.planId())
-            .orElseThrow(() -> new ResourceNotFoundException("Plan not found: " + req.planId()));
+        SubscriptionPlan plan = planRepository.findById(planId)
+            .orElseThrow(() -> new ResourceNotFoundException("Plan not found: " + planId));
         if (!Boolean.TRUE.equals(plan.getActive())) {
             throw new BadRequestException("Plan is not active.");
         }
@@ -69,9 +76,44 @@ public class SubscriptionService {
     }
 
     public SubscriptionDto.SubscriptionResponse getActiveSubscription(Long userId) {
-        return subscriptionRepository.findByUserIdAndStatusOrderByCurrentPeriodEndDesc(userId, SubscriptionStatus.ACTIVE)
+        SubscriptionDto.SubscriptionResponse active = getActiveSubscriptionOrNull(userId);
+        if (active == null) {
+            throw new ResourceNotFoundException("No active subscription found for user: " + userId);
+        }
+        return active;
+    }
+
+    /**
+     * Active, non-expired subscription or null. Used by the app shell so a
+     * free account is a normal state rather than an error.
+     */
+    @Transactional(readOnly = true)
+    public SubscriptionDto.SubscriptionResponse getActiveSubscriptionOrNull(Long userId) {
+        if (userId == null) return null;
+        return subscriptionRepository
+            .findByUserIdAndStatusOrderByCurrentPeriodEndDesc(userId, SubscriptionStatus.ACTIVE)
+            .filter(sub -> sub.getCurrentPeriodEnd() == null
+                || sub.getCurrentPeriodEnd().isAfter(Instant.now()))
             .map(this::toResponse)
-            .orElseThrow(() -> new ResourceNotFoundException("No active subscription found for user: " + userId));
+            .orElse(null);
+    }
+
+    /** Feature flags for the signed-in user, derived from the active plan. */
+    @Transactional(readOnly = true)
+    public SubscriptionDto.PlanEntitlements getEntitlements(Long userId) {
+        if (userId == null) {
+            return new SubscriptionDto.PlanEntitlements(false, false, false, false);
+        }
+        return subscriptionRepository
+            .findByUserIdAndStatusOrderByCurrentPeriodEndDesc(userId, SubscriptionStatus.ACTIVE)
+            .filter(sub -> sub.getCurrentPeriodEnd() == null
+                || sub.getCurrentPeriodEnd().isAfter(Instant.now()))
+            .map(sub -> new SubscriptionDto.PlanEntitlements(
+                Boolean.TRUE.equals(sub.getPlan().getDubaiRatesAccess()),
+                Boolean.TRUE.equals(sub.getPlan().getCalculatorAccess()),
+                Boolean.TRUE.equals(sub.getPlan().getPdfExportAccess()),
+                Boolean.TRUE.equals(sub.getPlan().getSavedCalculationsAccess())))
+            .orElse(new SubscriptionDto.PlanEntitlements(false, false, false, false));
     }
 
     public boolean hasActiveSubscription(Long userId) {

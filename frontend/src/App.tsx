@@ -23,6 +23,8 @@ const AdminProducts = React.lazy(() => import('@/pages/AdminProducts'));
 const AdminPorts = React.lazy(() => import('@/pages/AdminPorts'));
 const AdminUsers = React.lazy(() => import('@/pages/AdminUsers'));
 const NotFound = React.lazy(() => import('@/pages/NotFound'));
+// Deep links used by the installed app / native shells.
+const GetApp = React.lazy(() => import('@/pages/GetApp'));
 
 function PageLoader() {
   return (
@@ -77,6 +79,7 @@ export default function App() {
           <Route element={<PublicLayout />}>
             <Route path="/" element={<Landing />} />
             <Route path="/pricing" element={<Pricing />} />
+            <Route path="/get-app" element={<GetApp />} />
           </Route>
 
           {/* Auth */}
