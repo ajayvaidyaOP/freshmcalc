@@ -57,3 +57,9 @@ frontend/android/local.properties
 frontend/android/app/google-services.json
 frontend/ios/App/Podfile.lock
 frontend/ios/App/App/public
+
+# Postgres dumps (never commit customer data).
+# Re-include the folder itself so the .gitkeep survives the backups/ rule above.
+!infrastructure/backups/
+infrastructure/backups/*
+!infrastructure/backups/.gitkeep

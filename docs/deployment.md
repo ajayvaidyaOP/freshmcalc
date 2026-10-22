@@ -69,19 +69,46 @@ immediately; hashed assets are cached for a year.
 
 All credentials come from environment variables. No secrets are committed to
 Git. Key values: `DB_*`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`, `RAZORPAY_*`,
-`ADMIN_*`. See `infrastructure/.env.example`.
+`ADMIN_*`, `APP_PUBLIC_URL`, `MAIL_*`. See `infrastructure/.env.example`.
+
+| Variable | Why it matters |
+|---|---|
+| `APP_PUBLIC_URL` | Base URL in password-reset emails (`https://freshmcalc.com`). |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_FROM` | SMTP for reset links and receipts. Port 587 uses STARTTLS, 465 implicit TLS. Leave empty and the app still runs — resets simply can't be delivered. |
+| `APP_MAIL_EXPOSE_RESET_LINK` | `true` only on a dev machine: prints reset links to the log instead of emailing. Never `true` in production. |
+| `RAZORPAY_WEBHOOK_SECRET` | Verifies `POST /api/v1/webhooks/razorpay`. Without it the endpoint rejects every event. |
 
 ## Backups
 
-`infrastructure/scripts/backup.sh` creates a compressed `pg_dump` with 7-day
-retention. Schedule it and rehearse a restore:
+Dumps are written to `infrastructure/backups/` **on the host** (bind mount), so
+recreating the Postgres container never destroys them.
 
 ```bash
-0 2 * * * /opt/freshmcalc/infrastructure/scripts/backup.sh >> /var/log/freshmcalc-backup.log 2>&1
+# On the host, from infrastructure/
+docker compose exec -T postgres /backup/backup.sh
+
+# Prove the newest dump is usable — restores into a scratch database,
+# checks the core tables, then drops it:
+docker compose exec -T postgres /backup/verify-backup.sh
+
+# Real restore (stops the API first so nothing writes during the restore):
+docker compose stop backend
+docker compose exec -T postgres /backup/restore.sh /backups/freshmcalc_freshmcalc_20261022_020000.sql.gz
+docker compose start backend
 ```
 
-Store copies off the server (object storage / another region). A backup that
-has never been restored is not a backup.
+Schedule both on the host:
+
+```cron
+# 02:00 daily backup, 03:00 Sunday rehearsal
+0 2 * * *  cd /opt/freshmcalc/infrastructure && docker compose exec -T postgres /backup/backup.sh >> /var/log/freshmcalc-backup.log 2>&1
+0 3 * * 0  cd /opt/freshmcalc/infrastructure && docker compose exec -T postgres /backup/verify-backup.sh >> /var/log/freshmcalc-backup.log 2>&1
+```
+
+Sync `infrastructure/backups/` to object storage in another region (rclone,
+S3, Backblaze). `backup.sh` keeps 7 daily dumps locally — the off-site copy is
+what survives a lost server. A backup that has never been restored is not a
+backup, which is what the Sunday rehearsal proves.
 
 ## Updating
 
@@ -102,10 +129,25 @@ an applied migration — add `V3__*.sql`.
 | API health | `curl -s https://your-domain.com/health` |
 | Recent errors | `docker compose logs --since 1h backend` |
 | Disk (Postgres volume) | `docker system df -v` |
+| Trace one request | `docker compose logs backend | grep <request-id>` |
 
-Point an uptime monitor (UptimeRobot/BetterStack) at `/health` and alert on
-non-200. Watch disk space — the container log driver is capped at 10 MB × 3
-files per service.
+Every response carries `X-Request-Id` (`RequestIdFilter`), and the same id is
+in every backend log line, so a user's screenshot of an error is enough to find
+the exact stack trace. Point an uptime monitor (UptimeRobot/BetterStack) at
+`/health` and alert on non-200. `/health` is deliberately terse
+(`show-details: never`) so it can be public.
+
+For exception tracking with stack traces and alerting, add Sentry — it needs no
+code changes:
+
+1. Add `implementation("io.sentry:sentry-spring-boot-starter-jakarta:7.20.0")`
+   to `backend/build.gradle`.
+2. Set `SENTRY_DSN=https://…` and `SENTRY_ENVIRONMENT=production`.
+3. Redeploy. Traces carry the same `X-Request-Id` header in Sentry's request
+   context.
+
+Watch disk space — the container log driver is capped at 10 MB × 3 files per
+service.
 
 ## Security baseline
 
@@ -119,31 +161,51 @@ files per service.
 - Database on loopback; no public 5432
 - Backend container runs as a non-root user
 - No mock data in production mode
+- Payment webhooks are HMAC-verified and de-duplicated (`webhook_events`)
+- Password reset uses single-use SHA-256-hashed tokens (30 min TTL), no email
+  enumeration
+- Behind Cloudflare or an ALB, fill `infrastructure/nginx/realip.conf`
+  (`scripts/cloudflare-realip.sh` regenerates it) so rate limits apply to the
+  real client IP instead of the proxy's
 
 ## Mobile releases
 
 See [`mobile-apps.md`](mobile-apps.md). Store builds call the same HTTPS API, so
 deploy the backend before submitting binaries.
 
-## Go-live gaps (close before charging real customers)
+## Go-live checklist
 
-These are deliberate, documented gaps rather than surprises:
+Everything that can be closed in code is closed. What remains is operational —
+accounts, credentials and hardware you must own.
 
-1. **Entitlements are enforced in the UI, not yet per-endpoint.**
-   `planEntitlements` drives the locks, but `/api/v1/rates` is public by design
-   and `/api/v1/calculations` only requires a login. Before charging, add a
-   backend check (e.g. `@PreAuthorize` on save/list) so a free account cannot
-   call the API directly. Admins should bypass.
-2. **Account deletion** — required by both stores for account-based apps.
-   Add `DELETE /api/v1/auth/me` (anonymise or delete, keep invoices) and a
-   confirmation UI in Settings.
-3. **Webhook reconciliation** — `WebhookController` verifies signatures and
-   stores events, but does not yet change subscription state. The verify
-   endpoint is the primary activation path; add refund/cancel handling to the
-   webhook before refunds matter.
-4. **Rate limits are per-IP at Nginx.** Behind a CDN, configure real-client-IP
-   headers or the limit will apply to the CDN.
-5. **No email delivery** — password reset endpoints are stubs. Wire an SMTP
-   provider (the `spring.mail` settings already exist) before launch.
-6. **Monitoring** — `/health` + container logs only. Add error tracking
-   (Sentry) and a backup-restore rehearsal.
+### Implemented in code (no action needed)
+
+| Requirement | Where |
+|---|---|
+| Plan entitlements enforced per endpoint (admins bypass) | `AccessControlService`, `MarketRateController`, `CalculationController` |
+| Users can always read/delete their own sheets, even after a plan lapses | `CalculationController` |
+| Account deletion (store requirement) with anonymisation + plan cancellation | `DELETE /api/v1/auth/me`, Settings → Delete account |
+| Public account-deletion page (Play requirement) | `/delete-account` |
+| Password reset over email, single-use hashed tokens | `/auth/forgot-password`, `/auth/reset-password`, `MailService` |
+| Razorpay webhook reconciliation (capture, failure, refund) | `WebhookController` + `PaymentService.reconcile*` |
+| Privacy policy, terms, signup consent | `/privacy`, `/terms`, Register |
+| Real client IP behind a CDN | `infrastructure/nginx/realip.conf` |
+| Backup + restore rehearsal | `infrastructure/scripts/{backup,restore,verify-backup}.sh` |
+| Request correlation id in logs and responses | `RequestIdFilter`, `logback-spring.xml` |
+
+### You must do before the first paying customer
+
+1. **SMTP credentials** — create a mailbox (Zoho/Postmark/SES), set `MAIL_*`,
+   send yourself a reset link, confirm it arrives and expires after 30 minutes.
+2. **Razorpay KYC + live keys + webhook** — see [`razorpay.md`](razorpay.md).
+3. **DNS + HTTPS** — enable the 443 server block, issue certificates, set
+   `APP_PUBLIC_URL=https://freshmcalc.com` and `CORS_ALLOWED_ORIGINS`.
+4. **Backups off-site** — schedule the cron above and copy dumps to object
+   storage.
+5. **Uptime monitor** on `/health`, alerting to a phone that is actually
+   answered.
+6. **Store accounts** — Play Console (US$25 once) and Apple Developer
+   (US$99/year); see [`mobile-apps.md`](mobile-apps.md).
+7. **Legal review** of `/privacy` and `/terms` by someone qualified for Indian
+   DPDP + UAE data handling. The shipped text is a complete, honest draft, not
+   legal advice.

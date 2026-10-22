@@ -205,7 +205,7 @@ export default function Subscription() {
                 )}
               </div>
             </div>
-            {!subActive && (
+            {!subActive && !native && (
               <Button asChild size="lg" className="w-full shrink-0 md:w-auto">
                 <a href="#plans">Choose a plan <ArrowRight className="h-[18px] w-[18px]" /></a>
               </Button>
@@ -215,20 +215,25 @@ export default function Subscription() {
       )}
 
       {native && (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
-          <Smartphone className="mt-0.5 h-5 w-5 shrink-0" />
+        <div className="flex items-start gap-3 rounded-2xl border border-border/80 bg-card p-4">
+          <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-brand-600 dark:text-brand-400" />
           <div className="text-[13px] leading-relaxed">
-            <p className="font-bold">Plans are managed on the web</p>
-            <p className="mt-0.5 text-amber-900/80 dark:text-amber-200/80">
-              This app version is a companion to your FreshmCalc account. Subscribe or renew at freshmcalc.com —
-              store in-app billing is planned for a later release.
+            <p className="font-bold">Your subscription works here</p>
+            <p className="mt-0.5 text-muted-foreground">
+              Signing in with your existing FreshmCalc account unlocks the same rates, calculator and saved sheets on
+              this device. This version does not sell subscriptions in-app; our team can help with any plan change at{' '}
+              <a href="mailto:support@freshmcalc.com" className="font-semibold text-foreground underline underline-offset-4">
+                support@freshmcalc.com
+              </a>
+              .
             </p>
           </div>
         </div>
       )}
 
-      {/* Plans */}
-      <div id="plans" className="scroll-mt-24">
+      {/* Plans — web only. App Store/Play rules: no in-app purchase CTA in the
+          native shells until real IAP (StoreKit 2 / Play Billing) is wired. */}
+      <div id="plans" className={cn('scroll-mt-24', native && 'hidden')}>
         <h2 className="mb-4 font-display text-lg font-bold">{subActive ? 'Switch or renew' : 'Available plans'}</h2>
         {plansQuery.isLoading ? (
           <div className="grid gap-4 md:grid-cols-3">

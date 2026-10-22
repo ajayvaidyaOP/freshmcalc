@@ -1,15 +1,43 @@
 'use client';
 
 import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BellRing, Building2, Lock, LogOut, Mail, MapPin, MonitorSmartphone, Moon, Phone, Save, Sun, UserRound } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  AlertTriangle,
+  BellRing,
+  Building2,
+  FileText,
+  Loader2,
+  Lock,
+  LogOut,
+  Mail,
+  MapPin,
+  MonitorSmartphone,
+  Moon,
+  Phone,
+  Save,
+  ShieldCheck,
+  Sun,
+  Trash2,
+  UserRound,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/common/PageHeader';
 import { FormField } from '@/components/layout/AuthLayout';
-import { clearAuth, getAuth } from '@/lib/api';
+import { apiError, clearAuth, getAuth, refreshUser } from '@/lib/api';
+import { authService } from '@/services/auth.service';
+import { isDemoMode } from '@/lib/demo';
 import { displayName, initials } from '@/lib/format';
 import { toast } from '@/hooks/use-toast';
 import { useTheme, type ThemePreference } from '@/hooks/use-theme';
@@ -31,17 +59,91 @@ export default function Settings() {
   });
   const [notifyRates, setNotifyRates] = React.useState(() => localStorage.getItem('freshmcalc_notify_rates') !== 'off');
   const [notifyBilling, setNotifyBilling] = React.useState(() => localStorage.getItem('freshmcalc_notify_billing') !== 'off');
+  const [savingProfile, setSavingProfile] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [deleteConfirm, setDeleteConfirm] = React.useState('');
+  const [deleting, setDeleting] = React.useState(false);
+
+  // Login only returns email/role; hydrate the real profile from the server so
+  // the form never shows blanks (and a save can't wipe stored details).
+  React.useEffect(() => {
+    if (isDemoMode()) return;
+    let cancelled = false;
+    authService
+      .me()
+      .then((me) => {
+        if (cancelled || !me) return;
+        setProfile({
+          firstName: me.firstName || '',
+          lastName: me.lastName || '',
+          email: me.email || '',
+          phone: me.phone || '',
+          company: me.company || '',
+          country: me.country || 'India',
+          city: me.city || '',
+        });
+      })
+      .catch(() => {
+        /* offline — keep the cached values */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setProfile((p) => ({ ...p, [key]: e.target.value }));
 
-  const saveProfile = () => {
+  /** Persist to the server so the change follows the user to every device. */
+  const saveProfile = async () => {
+    if (isDemoMode()) {
+      toast({ title: 'Demo mode', description: 'Profile changes are not saved in the demo.' });
+      return;
+    }
+    setSavingProfile(true);
     try {
-      const current = getAuth().user || {};
-      localStorage.setItem('freshmcalc_user', JSON.stringify({ ...current, ...profile }));
-      toast({ title: 'Profile saved', description: 'Your details are updated on this device.', variant: 'success' });
-    } catch {
-      toast({ title: 'Could not save', description: 'Please try again.', variant: 'destructive' });
+      const updated = await authService.updateProfile({
+        firstName: profile.firstName.trim(),
+        lastName: profile.lastName.trim(),
+        phone: profile.phone.trim(),
+        company: profile.company.trim(),
+        country: profile.country.trim(),
+        city: profile.city.trim(),
+      });
+      localStorage.setItem('freshmcalc_user', JSON.stringify(updated));
+      setProfile((p) => ({ ...p, ...updated, email: updated.email || p.email }));
+      await refreshUser();
+      toast({ title: 'Profile saved', description: 'Your details are updated on the server.', variant: 'success' });
+    } catch (e: any) {
+      toast({
+        title: 'Could not save profile',
+        description: apiError(e, 'Please check your connection and try again.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (deleteConfirm.trim().toUpperCase() !== 'DELETE') return;
+    setDeleting(true);
+    try {
+      await authService.deleteAccount();
+      clearAuth();
+      toast({
+        title: 'Account deleted',
+        description: 'Your account, cost sheets and plan have been removed. Payment records are kept for accounting only.',
+        variant: 'success',
+      });
+      navigate('/');
+    } catch (e: any) {
+      toast({
+        title: 'Could not delete account',
+        description: apiError(e, 'Please try again or email support@freshmcalc.com.'),
+        variant: 'destructive',
+      });
+      setDeleting(false);
     }
   };
 
@@ -126,8 +228,9 @@ export default function Settings() {
               </FormField>
             </div>
           </div>
-          <Button onClick={saveProfile} className="mt-6 w-full sm:w-auto">
-            <Save className="h-4 w-4" /> Save profile
+          <Button onClick={saveProfile} disabled={savingProfile} className="mt-6 w-full sm:w-auto">
+            {savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {savingProfile ? 'Saving…' : 'Save profile'}
           </Button>
         </CardContent>
       </Card>
@@ -198,32 +301,107 @@ export default function Settings() {
       {/* Security */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><Lock className="h-5 w-5 text-brand-600 dark:text-brand-400" /> Security</CardTitle>
-          <CardDescription>Password resets are handled over verified email for your safety.</CardDescription>
+          <CardTitle className="flex items-center gap-2 text-base"><Lock className="h-5 w-5 text-brand-600 dark:text-brand-400" /> Password & security</CardTitle>
+          <CardDescription>A reset link is emailed to your registered address and expires in 30 minutes.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-3 rounded-2xl bg-brand-50 p-4 text-sm leading-relaxed dark:bg-brand-950/70 sm:flex-row sm:items-center">
             <p className="flex-1 text-muted-foreground">
-              Need a new password? Write to <strong className="text-foreground">support@freshmcalc.com</strong> from your
-              registered email and we'll send you a secure reset link.
+              We'll send a one-time link to <strong className="text-foreground">{profile.email || 'your email'}</strong>.
+              Your current password stays valid until you choose a new one.
             </p>
             <Button asChild variant="outline" className="shrink-0">
-              <a href="mailto:support@freshmcalc.com?subject=Password%20reset%20request">Email support</a>
+              <Link to="/forgot-password">Send reset link</Link>
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Danger zone */}
-      <div className="flex flex-col gap-3 rounded-3xl border border-red-200 bg-red-50/60 p-5 dark:border-red-900/50 dark:bg-red-950/20 sm:flex-row sm:items-center">
+      {/* Legal */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="h-5 w-5 text-brand-600 dark:text-brand-400" /> Legal & data
+          </CardTitle>
+          <CardDescription>How FreshmCalc handles your account and business data.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 sm:flex-row">
+          <Button asChild variant="outline" className="w-full sm:w-auto">
+            <Link to="/privacy">
+              <ShieldCheck className="h-4 w-4" /> Privacy policy
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="w-full sm:w-auto">
+            <Link to="/terms">
+              <FileText className="h-4 w-4" /> Terms of service
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Sign out */}
+      <div className="flex flex-col gap-3 rounded-3xl border border-border/80 bg-card p-5 sm:flex-row sm:items-center">
         <div className="flex-1">
-          <h3 className="font-display text-[15px] font-bold text-red-800 dark:text-red-300">Sign out of FreshmCalc</h3>
-          <p className="text-sm text-red-700/80 dark:text-red-300/70">You'll need to sign in again to see live Dubai rates on this device.</p>
+          <h3 className="font-display text-[15px] font-bold">Sign out of FreshmCalc</h3>
+          <p className="text-sm text-muted-foreground">You'll need to sign in again to see live Dubai rates on this device.</p>
         </div>
-        <Button variant="destructive" onClick={logout} className="w-full shrink-0 sm:w-auto">
+        <Button variant="outline" onClick={logout} className="w-full shrink-0 sm:w-auto">
           <LogOut className="h-4 w-4" /> Sign out
         </Button>
       </div>
+
+      {/* Danger zone */}
+      <div className="flex flex-col gap-3 rounded-3xl border border-red-200 bg-red-50/60 p-5 dark:border-red-900/50 dark:bg-red-950/20 sm:flex-row sm:items-center">
+        <div className="flex-1">
+          <h3 className="flex items-center gap-2 font-display text-[15px] font-bold text-red-800 dark:text-red-300">
+            <AlertTriangle className="h-4 w-4" /> Delete account
+          </h3>
+          <p className="text-sm leading-relaxed text-red-700/80 dark:text-red-300/70">
+            Permanently deletes your profile, saved cost sheets and active plan. Payment records are kept for
+            accounting. This cannot be undone.
+          </p>
+        </div>
+        <Button variant="destructive" onClick={() => setDeleteOpen(true)} className="w-full shrink-0 sm:w-auto">
+          <Trash2 className="h-4 w-4" /> Delete account
+        </Button>
+      </div>
+
+      <Dialog open={deleteOpen} onOpenChange={(open) => { setDeleteOpen(open); if (!open) setDeleteConfirm(''); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete your FreshmCalc account?</DialogTitle>
+            <DialogDescription>
+              This removes your profile, all saved cost sheets and cancels any active plan immediately. Your email is
+              anonymised and you can sign up again later with the same address.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="delete-confirm" className="text-[13px] font-bold">
+              Type <span className="font-mono text-red-600">DELETE</span> to confirm
+            </label>
+            <Input
+              id="delete-confirm"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder="DELETE"
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+              Keep my account
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={deleteAccount}
+              disabled={deleting || deleteConfirm.trim().toUpperCase() !== 'DELETE'}
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {deleting ? 'Deleting…' : 'Delete permanently'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

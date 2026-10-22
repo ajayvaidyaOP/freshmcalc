@@ -120,6 +120,21 @@ npm test               # costing engine (vitest)
 
 Full store submission steps: `docs/mobile-apps.md`.
 
+## 4c. Email (password reset) in local dev
+
+Without SMTP the app still runs. To test the reset flow on your machine, set in
+`backend/.env`:
+
+```properties
+APP_PUBLIC_URL=http://localhost:5173
+APP_MAIL_EXPOSE_RESET_LINK=true
+```
+
+Request a reset at `/forgot-password`; the link is printed in the backend log
+(`SMTP is not configured — password reset link for …`). Paste it into the
+browser. For real delivery set `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`,
+`MAIL_PASSWORD`, `MAIL_FROM` and `APP_PUBLIC_URL`; see `docs/deployment.md`.
+
 ## 5. Razorpay test-mode setup
 
 See `docs/razorpay.md`. Backend starts in Razorpay test mode by default. If live credentials or approval are missing, the frontend shows an explicit "configuration required" state.
@@ -155,3 +170,12 @@ Live market rates displayed to subscribers must be **Dubai market rates (AED)**,
     install paths, API responses are never cached by the service worker.
 18. Native shells build (`npm run build:app` + `npx cap sync`) and the
     calculator draft survives an app restart.
+19. Plan enforcement: a free login gets `403` from `GET /api/v1/rates` and from
+    `POST /api/v1/calculations`, while `GET /api/v1/calculations` still lists
+    (and deletes) the user's own sheets. An `ADMIN` gets everything.
+20. Account deletion anonymises the email, cancels the subscription, removes
+    the sheets, and the old password can no longer sign in.
+21. Password reset: link works once, expires after 30 minutes, and
+    `/forgot-password` returns 200 for unknown emails.
+22. Razorpay webhook: invalid signature → 400; replay → no-op; refund →
+    payment REFUNDED and plan cancelled.

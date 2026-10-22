@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ProductAvatar } from '@/components/common/ProductAvatar';
 import { calculationsService } from '@/services/calculations.service';
 import { generateQuotationPdf } from '@/lib/pdf';
+import { isNativeApp } from '@/lib/platform';
 import { formatAED, formatDate, formatNumber } from '@/lib/format';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -45,10 +46,14 @@ export default function Calculations() {
     return { profit, avgMargin };
   }, [calculations]);
 
-  const exportPdf = (c: any) => {
+  const exportPdf = async (c: any) => {
     try {
-      generateQuotationPdf(c);
-      toast({ title: 'PDF quotation downloaded', description: c.referenceNumber || c.product, variant: 'success' });
+      await generateQuotationPdf(c);
+      toast({
+        title: isNativeApp() ? 'Quotation ready to share' : 'PDF quotation downloaded',
+        description: c.referenceNumber || c.product,
+        variant: 'success',
+      });
     } catch {
       toast({ title: 'PDF export failed', description: 'Please try again.', variant: 'destructive' });
     }

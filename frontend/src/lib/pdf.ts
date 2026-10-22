@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { isNativeApp } from '@/lib/platform';
 
 export interface QuotationItem {
   name?: string;
@@ -64,7 +65,15 @@ const qty = (value: number | undefined, suffix: string) =>
  * The PDF renders the saved snapshot only — it never recalculates money, so a
  * historical quotation can't silently change when rates move.
  */
-export function generateQuotationPdf(data: QuotationData) {
+/**
+ * Build and deliver the quotation.
+ *
+ * Web: a normal browser download.
+ * Native (Capacitor): WKWebView/Android WebView cannot download a blob, so the
+ * PDF is written to the app cache and handed to the system share sheet — the
+ * user can save it to Files, mail it, or send it on WhatsApp.
+ */
+export async function generateQuotationPdf(data: QuotationData): Promise<void> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -281,5 +290,28 @@ export function generateQuotationPdf(data: QuotationData) {
     footerY + 10
   );
 
-  doc.save(`freshmcalc-costing-${(data.referenceNumber || 'draft').replace(/[^\w-]+/g, '_')}.pdf`);
+  const filename = `freshmcalc-costing-${(data.referenceNumber || 'draft').replace(/[^\w-]+/g, '_')}.pdf`;
+
+  if (isNativeApp()) {
+    const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+      import('@capacitor/filesystem'),
+      import('@capacitor/share'),
+    ]);
+    // jsPDF data URI → base64 body; Filesystem writes base64 by default.
+    const base64 = doc.output('datauristring').split(',')[1] ?? '';
+    const written = await Filesystem.writeFile({
+      path: filename,
+      data: base64,
+      directory: Directory.Cache,
+    });
+    await Share.share({
+      title: 'FreshmCalc quotation',
+      text: `FreshmCalc costing ${data.referenceNumber || 'draft'}`,
+      url: written.uri,
+      dialogTitle: 'Save or share your quotation',
+    });
+    return;
+  }
+
+  doc.save(filename);
 }

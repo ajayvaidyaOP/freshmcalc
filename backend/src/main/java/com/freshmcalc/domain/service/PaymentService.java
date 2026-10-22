@@ -134,9 +134,7 @@ public class PaymentService {
             throw new BadRequestException("Incomplete payment details.");
         }
 
-        Payment payment = paymentRepository.findAll().stream()
-            .filter(p -> req.razorpayOrderId().equals(p.getRazorpayOrderId()))
-            .findFirst()
+        Payment payment = paymentRepository.findByRazorpayOrderId(req.razorpayOrderId())
             .orElseThrow(() -> new ResourceNotFoundException("Payment order not found."));
 
         if (payment.getUser() == null || !userId.equals(payment.getUser().getId())) {
@@ -179,6 +177,71 @@ public class PaymentService {
             log.warn("Payment {} has no plan reference; subscription not activated", payment.getId());
         }
         return toResponse(payment);
+    }
+
+    /* ------------------------------------------------- webhook reconciliation */
+
+    /**
+     * Payment confirmed by Razorpay (webhook). Idempotent: an already successful
+     * payment is left untouched and the plan is only activated once.
+     */
+    @Transactional
+    public void reconcilePaid(String razorpayOrderId, String razorpayPaymentId) {
+        if (isBlank(razorpayOrderId)) return;
+        paymentRepository.findByRazorpayOrderId(razorpayOrderId).ifPresent(payment -> {
+            if (payment.getStatus() == PaymentStatus.SUCCESS) {
+                return;
+            }
+            payment.setRazorpayPaymentId(razorpayPaymentId);
+            payment.setStatus(PaymentStatus.SUCCESS);
+            payment.setPaidAt(Instant.now());
+            paymentRepository.save(payment);
+
+            Long planId = planIdFrom(payment.getDescription());
+            if (planId != null && payment.getUser() != null) {
+                subscriptionService.activatePlan(payment.getUser().getId(), planId);
+                log.info("Webhook activated plan {} for user {}", planId, payment.getUser().getId());
+            } else {
+                log.warn("Payment {} has no plan reference; subscription not activated", payment.getId());
+            }
+        });
+    }
+
+    /** Payment failed / cancelled at the gateway. */
+    @Transactional
+    public void reconcileFailed(String razorpayOrderId, String reason) {
+        if (isBlank(razorpayOrderId)) return;
+        paymentRepository.findByRazorpayOrderId(razorpayOrderId).ifPresent(payment -> {
+            if (payment.getStatus() == PaymentStatus.SUCCESS) {
+                // Never downgrade a successful payment from a late failure event.
+                return;
+            }
+            payment.setStatus(PaymentStatus.FAILED);
+            payment.setFailureReason(reason == null ? "Payment failed at gateway" : reason);
+            paymentRepository.save(payment);
+        });
+    }
+
+    /** Refund issued — revoke the plan that this payment unlocked. */
+    @Transactional
+    public void reconcileRefunded(String razorpayPaymentId, String razorpayOrderId) {
+        Payment payment = null;
+        if (!isBlank(razorpayPaymentId)) {
+            payment = paymentRepository.findByRazorpayPaymentId(razorpayPaymentId).orElse(null);
+        }
+        if (payment == null && !isBlank(razorpayOrderId)) {
+            payment = paymentRepository.findByRazorpayOrderId(razorpayOrderId).orElse(null);
+        }
+        if (payment == null) {
+            log.warn("Refund webhook for unknown payment (paymentId={}, orderId={})", razorpayPaymentId, razorpayOrderId);
+            return;
+        }
+        payment.setStatus(PaymentStatus.REFUNDED);
+        paymentRepository.save(payment);
+        if (payment.getUser() != null) {
+            subscriptionService.cancelActive(payment.getUser().getId());
+            log.info("Refund processed — plan cancelled for user {}", payment.getUser().getId());
+        }
     }
 
     public PaymentDto.PaymentResponse toResponse(Payment p) {

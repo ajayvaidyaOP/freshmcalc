@@ -116,6 +116,18 @@ public class SubscriptionService {
             .orElse(new SubscriptionDto.PlanEntitlements(false, false, false, false));
     }
 
+    /** Cancel the current plan (refund, account deletion, manual support action). */
+    public void cancelActive(Long userId) {
+        if (userId == null) return;
+        subscriptionRepository
+            .findByUserIdAndStatusOrderByCurrentPeriodEndDesc(userId, SubscriptionStatus.ACTIVE)
+            .ifPresent(sub -> {
+                sub.setStatus(SubscriptionStatus.CANCELLED);
+                sub.setEndedAt(Instant.now());
+                subscriptionRepository.save(sub);
+            });
+    }
+
     public boolean hasActiveSubscription(Long userId) {
         return subscriptionRepository.findByUserIdAndStatusOrderByCurrentPeriodEndDesc(userId, SubscriptionStatus.ACTIVE)
             .map(sub -> sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(Instant.now()))

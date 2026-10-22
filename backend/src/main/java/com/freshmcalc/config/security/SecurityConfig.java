@@ -47,16 +47,18 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Profile is private even though it lives under /auth
-                requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
+                // Profile is private even though it lives under /auth (GET/PATCH/DELETE)
+                requestMatchers("/api/v1/auth/me").authenticated()
                 // Public
                 requestMatchers("/api/v1/auth/**").permitAll()
                 requestMatchers("/api/v1/public/**").permitAll()
                 // OpenAPI docs
                 requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                // Rates: published rates readable by all; management by ADMIN
-                requestMatchers(HttpMethod.GET, "/api/v1/rates/**").permitAll()
+                // Rates are a paid feature: any signed-in user may call the
+                // endpoint, and MarketRateController then checks the plan
+                // (dubaiRatesAccess). Management stays ADMIN-only.
+                requestMatchers(HttpMethod.GET, "/api/v1/rates/**").authenticated()
                 // Products & ports: read public
                 requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                 requestMatchers(HttpMethod.GET, "/api/v1/ports/**").permitAll()
@@ -64,6 +66,10 @@ public class SecurityConfig {
                 // Plan catalogue is public (pricing page); purchases and
                 // subscription status still require authentication.
                 requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans").permitAll()
+                // Payment webhooks come from Razorpay's servers, not a browser
+                // session. They carry an HMAC signature that WebhookController
+                // verifies against RAZORPAY_WEBHOOK_SECRET before processing.
+                requestMatchers(HttpMethod.POST, "/api/v1/webhooks/**").permitAll()
                 // Everything else requires authentication
                 anyRequest().authenticated()
             )

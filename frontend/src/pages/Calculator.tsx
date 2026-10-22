@@ -31,6 +31,7 @@ import { ratesService } from '@/services/rates.service';
 import { calculationsService } from '@/services/calculations.service';
 import { apiError } from '@/lib/api';
 import { generateQuotationPdf } from '@/lib/pdf';
+import { isNativeApp } from '@/lib/platform';
 import { formatAED, formatINR, formatNumber } from '@/lib/format';
 import {
   DEFAULT_FX,
@@ -270,24 +271,40 @@ export default function Calculator() {
       });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
-      toast({
-        title: 'Could not save',
-        description: apiError(error, 'Save failed. Please try again.'),
-        variant: 'destructive',
-      });
+      const status = error?.response?.status;
+      if (status === 403) {
+        toast({
+          title: 'Plan required to save',
+          description:
+            'Your costing is ready — activate a plan to save it with a reference number and re-open it any time from Saved sheets.',
+          variant: 'destructive',
+        });
+      } else if (status === 401) {
+        toast({
+          title: 'Session expired',
+          description: 'Please sign in again, then save your sheet.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Could not save',
+          description: apiError(error, 'Save failed. Please try again.'),
+          variant: 'destructive',
+        });
+      }
     } finally {
       setSaving(false);
     }
   };
 
-  const onPreviewPdf = () => {
+  const onPreviewPdf = async () => {
     const problem = validate();
     if (problem) {
       toast({ title: 'Complete the shipment first', description: problem, variant: 'destructive' });
       return;
     }
     try {
-      generateQuotationPdf({
+      await generateQuotationPdf({
         referenceNumber: saved?.referenceNumber || 'DRAFT',
         product: form.product,
         variety: form.variety,
@@ -327,7 +344,10 @@ export default function Calculator() {
         ],
         createdAt: new Date().toISOString(),
       });
-      toast({ title: 'Quotation PDF downloaded', description: 'Draft costing with the full breakdown.' });
+      toast({
+        title: isNativeApp() ? 'Quotation ready to share' : 'Quotation PDF downloaded',
+        description: 'Draft costing with the full breakdown.',
+      });
     } catch {
       toast({ title: 'PDF export failed', description: 'Please try again.', variant: 'destructive' });
     }

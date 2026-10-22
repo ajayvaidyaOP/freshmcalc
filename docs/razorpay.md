@@ -45,7 +45,12 @@ Key properties:
 | GET | `/api/v1/subscription-plans/subscription` | user | current subscription |
 | POST | `/api/v1/payments/order` | user | create Razorpay order |
 | POST | `/api/v1/payments/verify` | user | verify signature + activate |
+| POST | `/api/v1/webhooks/razorpay` | Razorpay (HMAC) | capture / failure / refund reconciliation |
 | GET | `/api/v1/auth/me` | user | profile + `planEntitlements` |
+| PATCH | `/api/v1/auth/me` | user | update profile |
+| DELETE | `/api/v1/auth/me` | user | delete account (cancels plan) |
+| POST | `/api/v1/auth/forgot-password` | public | email a reset link (always 200) |
+| POST | `/api/v1/auth/reset-password` | public | set a new password from the token |
 
 ## Configuration
 
@@ -63,18 +68,35 @@ RAZORPAY_TEST_MODE=true
 
 ## Webhooks
 
-`POST /api/v1/webhooks/razorpay` verifies `X-Razorpay-Signature` on the raw
-body and stores each event once (`webhook_events.event_id` is unique).
+`POST /api/v1/webhooks/razorpay` is public (no JWT) but every request is
+verified against `RAZORPAY_WEBHOOK_SECRET` with HMAC-SHA256 on the **raw** body.
+The endpoint rejects everything when the secret is empty, so set it before
+going live.
 
-Set the URL in the Razorpay dashboard to:
+In the Razorpay dashboard → Settings → Webhooks:
 
-```
-https://your-domain.com/api/v1/webhooks/razorpay
-```
+| Field | Value |
+|---|---|
+| URL | `https://your-domain.com/api/v1/webhooks/razorpay` |
+| Secret | same value as `RAZORPAY_WEBHOOK_SECRET` |
+| Active events | `payment.captured`, `payment.failed`, `order.paid`, `refund.created`, `refund.processed` |
 
-Use webhooks for **reconciliation and refunds** (cancelled / failed /
-refunded), not as the only activation path — the in-app `verify` call is the
-primary path, so a user is unlocked even if a webhook is delayed.
+Behaviour:
+
+| Event | What the server does |
+|---|---|
+| `payment.captured`, `order.paid` | Finds the payment by order id, marks it SUCCESS, sets `paidAt`, activates the plan from the `PLAN:<id>` description. Already-successful payments are untouched. |
+| `payment.failed` | Marks the payment FAILED with the gateway reason. Never downgrades a successful payment. |
+| `refund.created` / `refund.processed` | Marks the payment REFUNDED and cancels the active subscription immediately. |
+
+Every event id (`X-Razorpay-Event-Id`, falling back to a hash of the body) is
+stored in `webhook_events`; a duplicate is acknowledged with 200 and not
+reprocessed. A bad signature returns 400 and Razorpay retries.
+
+Webhooks are **reconciliation**, not the only activation path: the in-app
+`POST /payments/verify` is primary, so a user is unlocked even if a webhook is
+delayed. Conversely, a user who closes the browser before `verify` still gets
+their plan when `payment.captured` arrives.
 
 ## App store builds
 
@@ -101,7 +123,11 @@ Verify all of these before going live:
 - [ ] Replaying the same verify call → no duplicate subscription
 - [ ] Verifying someone else's order → 400
 - [ ] Webhook with a bad signature → 400
-- [ ] Refund handling configured in the Razorpay dashboard
+- [ ] Same webhook delivered twice → second is a no-op (check `webhook_events`)
+- [ ] `payment.failed` → payment FAILED, no subscription
+- [ ] `refund.processed` → payment REFUNDED **and** `GET /subscription` shows no active plan
+- [ ] Close the browser immediately after paying → plan appears from the webhook alone
+- [ ] Refund/chargeback notifications enabled in the Razorpay dashboard
 
 ## Security rules
 

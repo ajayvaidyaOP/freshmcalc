@@ -27,6 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PageHeader } from '@/components/common/PageHeader';
 import { EmptyState } from '@/components/common/EmptyState';
 import { FreshnessTag, ProductAvatar } from '@/components/common/ProductAvatar';
+import { PlanLock } from '@/components/common/PlanLock';
 import { ratesService } from '@/services/rates.service';
 import { formatAED, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -42,7 +43,7 @@ export default function Rates() {
   const location = useLocation();
   const isHistory = location.pathname.includes('/history');
   const [searchParams, setSearchParams] = useSearchParams();
-  const { data: rates = [], isLoading, isError, refetch } = useQuery({
+  const { data: rates = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['rates'],
     queryFn: ratesService.listPublished,
   });
@@ -180,6 +181,12 @@ export default function Rates() {
             <Skeleton key={i} className="h-[168px] rounded-2xl" />
           ))}
         </div>
+      ) : isError && (error as any)?.response?.status === 403 ? (
+        <PlanLock
+          title="Live Dubai rates need an active plan"
+          description="Your account doesn't include market-rate access right now. Subscribe or renew to see today's AED wholesale prices."
+          benefits={['Daily Dubai wholesale prices in AED', 'Price history and trend charts', 'All grades and pack sizes']}
+        />
       ) : isError ? (
         <Card>
           <EmptyState

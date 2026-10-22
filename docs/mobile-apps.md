@@ -38,8 +38,12 @@ images, with the forest-green theme applied to the native status bar.
 - `npm run build:app` → native build (absolute API URL, `--mode native`).
 - `npm run app:android` → build + `cap sync android` + open Android Studio.
 - `npm run app:ios` → build + `cap sync ios` + open Xcode.
-- In the native shell, subscription checkout is **hidden** and replaced with
-  “manage your plan on the web” (store rules — see §5).
+- In the native shell, subscription checkout is **hidden** (store rules —
+  see §5); the plan screen shows status only.
+- PDF quotations work on phones: `src/lib/pdf.ts` writes the file to the app
+  cache with `@capacitor/filesystem` and opens the system share sheet
+  (`@capacitor/share`), because a WebView cannot download a blob. On the web it
+  stays a normal download.
 - Android hardware back walks the router history before exiting.
 
 ---
@@ -169,30 +173,68 @@ Remove that env var (and re-sync) before building a release.
 | Surface | Payment | Notes |
 |---|---|---|
 | Web / PWA | Razorpay (UPI, cards, net-banking) | current, lowest friction in India |
-| Android app | website (current) or Play Billing (later) | Play Billing is required for in-app digital purchases |
-| iOS app | **no in-app purchase UI** (current) | avoids Guideline 3.1.1 rejection; subscription is bought on the web |
+| Android app | **no in-app purchase UI** (current) | avoids Play's billing policy; add Play Billing later |
+| iOS app | **no in-app purchase UI** (current) | avoids Guideline 3.1.1 rejection |
+
+Both native shells hide the plan catalogue, the checkout and every
+"subscribe"/"buy" call to action (see `Subscription.tsx`, `PlanLock.tsx`). What
+remains is factual: the current plan, its expiry, and a support email for plan
+questions. That is the shape reviewers accept for a companion app to an
+existing SaaS account. Prices are not shown in-app because a price is a purchase
+signal.
 
 Because subscriptions are server-side, a plan bought on the web unlocks the
 Android app, the iOS app and the website at the same time — the app calls
 `GET /api/v1/auth/me` and receives `planEntitlements`.
 
+If you later want in-app purchases, integrate **StoreKit 2** and **Google Play
+Billing** (RevenueCat wraps both), validate receipts server-side, and write the
+result into the same `subscriptions` table. Never grant entitlements from the
+client's "purchase succeeded" callback alone.
+
 ---
 
 ## 6. Before you publish — checklist
 
-- [ ] Privacy policy page live at `https://freshmcalc.com/privacy`
-      (account data, payment processor, retention, contact)
-- [ ] Terms page at `https://freshmcalc.com/terms`
-- [ ] **Account deletion** implemented (backend `DELETE /auth/me` + UI) or a
-      clearly documented support process
-- [ ] Support email and phone on the store listing
+### Already in the repo
+
+- [x] Privacy policy at `/privacy` — data collected, processors (Razorpay,
+      SMTP, hosting), retention, DPDP rights, contact.
+- [x] Terms at `/terms` — plans, renewals, 7-day refund rule, liability, Pune
+      jurisdiction.
+- [x] Signup consent linking both documents.
+- [x] **Account deletion**: `DELETE /api/v1/auth/me` anonymises the user,
+      cancels the plan and deletes saved sheets; Settings → Delete account has a
+      type-`DELETE` confirmation; `/delete-account` is a **public** URL for the
+      Play Console deletion field.
+- [x] iOS privacy manifest (`ios/App/App/PrivacyInfo.xcprivacy`) — no tracking,
+      declared contact/user-content/purchase data, UserDefaults + file-timestamp
+      API reasons.
+- [x] Android manifest: `allowBackup="false"`, `usesCleartextTraffic="false"`,
+      `INTERNET` only, targetSdk 35.
+- [x] Password reset over email, no user enumeration.
+- [x] No in-app purchase CTA in either native shell.
+- [x] Offline shell, installable PWA, app icons and splashes.
+
+### You must do in the store consoles
+
+- [ ] Privacy policy URL: `https://freshmcalc.com/privacy`
+- [ ] Terms URL: `https://freshmcalc.com/terms`
+- [ ] Account-deletion URL: `https://freshmcalc.com/delete-account`
+- [ ] Support email **and** a phone number (Play requires both on the listing)
 - [ ] Screenshots without real customer data (use demo mode)
-- [ ] Play Data safety + Apple App Privacy answers match what the app collects
-- [ ] Release build points at `https://` only (no cleartext)
-- [ ] Crash reporting (e.g. Sentry) and analytics consent if you add them
+- [ ] Play **Data safety** + Apple **App Privacy** answers must match
+      `PrivacyInfo.xcprivacy` and `/privacy`: name, email, phone, user content
+      (cost sheets), purchase history. All app functionality, none for tracking.
+- [ ] Content rating questionnaire, target audience 18+, ads: none
+- [ ] Apple: `ITSAppUsesNonExemptEncryption=false` already set (no export
+      paperwork); App Review demo account with an active plan
+- [ ] Release build points at `https://` only (already enforced)
+- [ ] `JWT_SECRET`, `DB_PASSWORD`, Razorpay keys, `MAIL_*` set on the server
+- [ ] Crash reporting (optional Sentry — see `deployment.md`) and analytics
+      consent if you add analytics
+- [ ] Database backups + one verified restore before the first paying customer
 - [ ] Store builds tested on a real low-end Android phone and an iPhone
-- [ ] `JWT_SECRET`, `DB_PASSWORD`, Razorpay keys set on the server (not in Git)
-- [ ] Database backups scheduled **before** the first paying customer
 
 ---
 
@@ -218,9 +260,9 @@ Android app, the iOS app and the website at the same time — the app calls
 | Symptom | Cause / fix |
 |---|---|
 | Native build shows “Could not reach the server” | `.env.native` not used — build with `npm run build:app`, then `npx cap sync` |
-| iOS rejects external purchase link | Remove any “subscribe on web” hyperlink from the iOS build |
+| iOS rejects external purchase link | Native shells already hide plan CTAs; don't add "buy on our website" links/prices to the iOS build |
 | Play Console: “App bundle was signed with the wrong key” | Use the same upload keystore every release; enable Play App Signing |
 | Blank white screen after splash | `webDir` mismatch — run `npx cap sync` after every build |
 | Icons look cropped on Android | Use the maskable icon (`maskable-512.png`) and adaptive icon foreground |
 | Service worker keeps old JS | Bump the `VERSION` in `public/sw.js` on release; it clears old caches |
-| PDF not downloading in the native shell | jsPDF saves via the WebView download manager; test on device and keep the file path inside the app sandbox |
+| PDF not downloading in the native shell | Native uses `Filesystem` + `Share` (WebViews cannot download blobs); if the share sheet is empty, run `npx cap sync` after `npm install` so the plugins are registered |

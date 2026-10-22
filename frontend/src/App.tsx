@@ -10,6 +10,10 @@ import { LogoMark } from '@/components/common/Logo';
 const Landing = React.lazy(() => import('@/pages/Landing'));
 const Pricing = React.lazy(() => import('@/pages/Pricing'));
 const Login = React.lazy(() => import('@/pages/Login'));
+const ForgotPassword = React.lazy(() => import('@/pages/ForgotPassword'));
+const LegalPage = React.lazy(() => import('@/pages/LegalPage'));
+const AccountDeletion = React.lazy(() => import('@/pages/AccountDeletion'));
+const ResetPassword = React.lazy(() => import('@/pages/ResetPassword'));
 const Register = React.lazy(() => import('@/pages/Register'));
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
 const Rates = React.lazy(() => import('@/pages/Rates'));
@@ -80,11 +84,16 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/get-app" element={<GetApp />} />
+            <Route path="/privacy" element={<LegalPage kind="privacy" />} />
+            <Route path="/terms" element={<LegalPage kind="terms" />} />
+            <Route path="/delete-account" element={<AccountDeletion />} />
           </Route>
 
           {/* Auth */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Authenticated app shell */}
           <Route element={<RequireAuth />}>

@@ -248,8 +248,12 @@ If all 5 work, the full stack is healthy. 🎉
 | `ADMIN_PASSWORD` | recommended | — | First admin password. Remove after first production login |
 | `ADMIN_FIRST_NAME` | no | `Admin` | Display name for the bootstrap admin |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | for payments | — | Razorpay API keys (test keys are fine locally). Without them the app still runs; checkout stays disabled |
-| `RAZORPAY_WEBHOOK_SECRET` | for webhooks | — | Verifies Razorpay webhook signatures |
+| `RAZORPAY_WEBHOOK_SECRET` | for webhooks | — | Verifies Razorpay webhook signatures (required for reconcile/refunds) |
 | `RAZORPAY_TEST_MODE` | no | `true` | Set `false` only with live keys in production |
+| `APP_PUBLIC_URL` | for emails | `http://localhost:5173` | Base URL in password-reset links (no trailing slash) |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` | for reset emails | — / `587` | SMTP. Empty host = the app runs but reset emails can't be delivered |
+| `MAIL_FROM` | no | `no-reply@freshmcalc.com` | From address |
+| `APP_MAIL_EXPOSE_RESET_LINK` | dev only | `false` | Print reset links in the log instead of emailing |
 
 ### Frontend (`frontend/.env`)
 
@@ -332,6 +336,26 @@ saved sheet and the PDF quotation. Worked example + every formula:
 > The old screen only sent the purchase cost to the server, so “landed cost”
 > was really just the goods. That gap is fixed: the purchase line is now added
 > by the server automatically, and each expense head is stored with its group.
+
+---
+
+## Accounts, security and store compliance
+
+| Flow | Where |
+|---|---|
+| Sign up / sign in | `/register`, `/login` — email normalised to lowercase |
+| Forgot password | `/forgot-password` → emailed link (30 min, single use) → `/reset-password` |
+| Profile (name, phone, company, city) | Settings → **Save profile** writes to `PATCH /api/v1/auth/me` |
+| Plan status | `/subscription`; entitlements come from `GET /api/v1/auth/me` |
+| Delete account | Settings → **Delete account** (type `DELETE`) → `DELETE /api/v1/auth/me` |
+| Privacy / terms | `/privacy`, `/terms` — linked in the footer and at signup |
+| Public deletion page (Play requirement) | `/delete-account` |
+
+Deleting an account anonymises the user (`deleted-<id>@freshmcalc.invalid`), wipes
+the profile, cancels the subscription and deletes saved cost sheets. Payment rows
+stay, without personal data, for tax/accounting. Paid features are enforced on
+the **server** (`AccessControlService`), not just hidden in the UI; admins bypass.
+Users can always read or delete their own saved sheets even after a plan lapses.
 
 ---
 
@@ -494,9 +518,19 @@ Database backups: run `infrastructure/scripts/backup.sh` on a cron schedule
 - [ ] **HTTPS**: obtain certificates (e.g. Certbot/Let's Encrypt), mount them into the `nginx`
       service and add a `443 ssl` server block in `infrastructure/nginx/nginx.conf`
       (port 443 is already published). Terminate TLS at Nginx — do not expose Spring Boot directly
-- [ ] Razorpay live keys + `RAZORPAY_TEST_MODE=false`; webhook URL set to
-      `https://your-domain.com/api/v1/webhooks/razorpay` (see `docs/razorpay.md`)
-- [ ] Backup cron scheduled + one restore rehearsal done
+- [ ] Razorpay live keys + `RAZORPAY_TEST_MODE=false`; webhook URL + secret set
+      (events: `payment.captured`, `payment.failed`, `order.paid`, `refund.created`,
+      `refund.processed`) — see `docs/razorpay.md`
+- [ ] `APP_PUBLIC_URL=https://your-domain.com` (password-reset links)
+- [ ] SMTP configured (`MAIL_*`) and one reset email received end-to-end
+- [ ] Behind Cloudflare/ALB: fill `infrastructure/nginx/realip.conf` so rate limits
+      see the real client IP (`scripts/cloudflare-realip.sh` regenerates it)
+- [ ] Backup cron scheduled **and** `verify-backup.sh` restore rehearsal passed
+      (dumps are on the host at `infrastructure/backups/`, synced off-site)
+- [ ] Uptime monitor on `/health`; every 5xx log line carries the `X-Request-Id`
+      returned to the user, so support can find the trace
+- [ ] Legal pages reviewed for DPDP/UAE requirements; store consoles point at
+      `/privacy`, `/terms`, `/delete-account`
 - [ ] Never commit real `.env` files or secret keys (they are git-ignored — keep it that way)
 
 ---

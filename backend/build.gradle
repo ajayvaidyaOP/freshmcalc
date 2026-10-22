@@ -23,6 +23,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // Transactional email (password reset). Optional at runtime: without
+    // MAIL_HOST the MailService logs instead of sending.
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
 
     // Database + migrations (Spring Boot 3.3 manages Flyway 10, whose
     // PostgreSQL support ships as a separate module)
