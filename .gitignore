@@ -63,3 +63,6 @@ frontend/ios/App/App/public
 !infrastructure/backups/
 infrastructure/backups/*
 !infrastructure/backups/.gitkeep
+
+# Sentry (if configured) and local tooling
+.sentryclirc

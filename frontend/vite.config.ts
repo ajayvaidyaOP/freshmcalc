@@ -13,6 +13,11 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     allowedHosts: true,
+    watch: {
+      // Native projects contain a full copy of the web build after
+      // `npx cap sync`; watching them causes reload storms for no benefit.
+      ignored: ['**/android/**', '**/ios/**', '**/dist/**'],
+    },
     proxy: {
       '/api': 'http://localhost:8080',
     },
