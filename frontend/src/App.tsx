@@ -64,7 +64,7 @@ function RequireAuth() {
 
 function RequireAdmin() {
   const userRaw = localStorage.getItem('freshmcalc_user');
-  let user: any = null;
+  let user: any;
   try {
     user = userRaw ? JSON.parse(userRaw) : null;
   } catch {

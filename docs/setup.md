@@ -11,8 +11,8 @@ FreshmCalc is a Dubai fresh produce market-rate and India-to-Dubai export costin
 ## Prerequisites
 
 - Java 21 LTS (Temurin recommended)
-- Gradle 8.11+
-- Node.js 20+ and npm
+- Gradle wrapper included (no separate Gradle install required)
+- Node.js 22.12+ and npm
 - PostgreSQL 16 (or Docker Compose)
 - Razorpay account (test mode) for subscriptions
 
@@ -22,6 +22,8 @@ FreshmCalc is a Dubai fresh produce market-rate and India-to-Dubai export costin
 cd backend
 cp .env.example .env   # edit credentials
 ./gradlew bootJar      # or ./gradlew build
+# Spring Boot does not read .env by itself; load it in this shell first:
+set -a && source .env && set +a
 ./gradlew bootRun
 ```
 
@@ -52,6 +54,8 @@ Flyway runs automatically on startup against an empty database. Migrations live 
 
 - `V1__initial_schema.sql` — normalized schema (users, products, market_rates, ports, routes, calculations, subscriptions, payments, audit logs, etc.)
 - `V2__reference_data.sql` — reference countries/cities/ports and default subscription plans
+- `V3__link_subscriptions_to_payments.sql` — exact payment-to-subscription refund linkage
+- `V4__baseline_market_rate_history.sql` — initial history snapshots for existing published Dubai rates
 
 To validate migrations without Hibernate auto-create, `spring.jpa.hibernate.ddl-auto=validate`.
 
@@ -87,7 +91,7 @@ On startup the backend creates this account with role `ADMIN` (or promotes the a
 ```bash
 cd frontend
 cp .env.example .env   # edit VITE_API_BASE
-npm install
+npm ci
 npm run dev            # http://localhost:5173
 ```
 
@@ -97,7 +101,8 @@ Frontend proxies `/api` to `http://localhost:8080` in dev.
 
 ```bash
 cd infrastructure
-cp .env.example .env   # edit credentials
+cp .env.example .env   # set non-empty DB_PASSWORD/JWT_SECRET and the other values
+docker compose config --quiet
 docker compose up --build
 ```
 
@@ -113,8 +118,9 @@ before starting the next service.
 
 ```bash
 cd frontend
-npm run build          # web / PWA
-npm run build:app      # native build for the store shells
+npm run build          # web / PWA bundle
+npm run build:app      # native-mode web bundle (not an APK/AAB)
+npx cap sync android   # copy that bundle into the Android project
 npm test               # costing engine (vitest)
 ```
 

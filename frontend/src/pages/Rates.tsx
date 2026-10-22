@@ -36,7 +36,9 @@ type SortKey = 'newest' | 'price-desc' | 'price-asc' | 'name';
 type ViewMode = 'cards' | 'table';
 
 function isDubaiRate(r: any) {
-  return (r.country || '').toLowerCase().includes('uae') || (r.city || '').toLowerCase() === 'Dubai';
+  const country = (r.country || '').toLowerCase();
+  const city = (r.city || '').toLowerCase();
+  return country === 'uae' || country.includes('united arab emirates') || city === 'dubai';
 }
 
 export default function Rates() {
@@ -44,8 +46,8 @@ export default function Rates() {
   const isHistory = location.pathname.includes('/history');
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: rates = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['rates'],
-    queryFn: ratesService.listPublished,
+    queryKey: [isHistory ? 'rate-history' : 'rates'],
+    queryFn: isHistory ? ratesService.listHistory : ratesService.listPublished,
   });
 
   const [search, setSearch] = React.useState(searchParams.get('q') || '');
@@ -59,10 +61,9 @@ export default function Rates() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const dubaiRates = React.useMemo(() => {
-    const filtered = rates.filter(isDubaiRate);
-    return filtered.length > 0 ? filtered : rates;
-  }, [rates]);
+  // Never fall back to non-Dubai rows: doing so could present another
+  // market's price as a Dubai selling rate.
+  const dubaiRates = React.useMemo(() => rates.filter(isDubaiRate), [rates]);
 
   const productNames = React.useMemo(
     () => Array.from(new Set(dubaiRates.map((r: any) => r.productName).filter(Boolean))).sort() as string[],
@@ -220,7 +221,7 @@ export default function Rates() {
           />
         </Card>
       ) : isHistory ? (
-        <HistoryView rates={filtered} product={product} productNames={productNames} onSelectProduct={setProduct} />
+        <HistoryView rates={filtered} product={product} productNames={productNames} />
       ) : (
         <>
           {/* Cards: always on mobile, toggleable on md+ */}
@@ -378,24 +379,28 @@ function HistoryView({
   rates,
   product,
   productNames,
-  onSelectProduct,
 }: {
   rates: any[];
   product: string;
   productNames: string[];
-  onSelectProduct: (p: string) => void;
 }) {
   const selected = product === 'all' ? productNames[0] : product;
+  const selectedRate = rates.find((r: any) => r.productName === selected);
   const series = React.useMemo(
     () =>
       rates
-        .filter((r: any) => r.productName === selected && r.lastUpdated)
+        .filter((r: any) =>
+          r.productName === selected &&
+          r.variety === selectedRate?.variety &&
+          r.grade === selectedRate?.grade &&
+          r.pricingUnit === selectedRate?.pricingUnit &&
+          r.lastUpdated)
         .sort((a: any, b: any) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime())
         .map((r: any) => ({
           time: new Date(r.lastUpdated).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
           price: Number(r.priceAmount),
         })),
-    [rates, selected]
+    [rates, selected, selectedRate]
   );
 
   return (
@@ -403,7 +408,7 @@ function HistoryView({
       <Card>
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-            Price trend — {selected || 'select a product'}
+            Price trend — {selected || 'select a product'}{selectedRate?.variety ? ` · ${selectedRate.variety}` : ''}
             {series.length < 2 && <Badge variant="warn">Collecting history</Badge>}
           </CardTitle>
           <CardDescription>

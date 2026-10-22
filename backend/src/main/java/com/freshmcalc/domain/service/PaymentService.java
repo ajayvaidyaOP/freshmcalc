@@ -172,7 +172,7 @@ public class PaymentService {
 
         Long planId = planIdFrom(payment.getDescription());
         if (planId != null) {
-            subscriptionService.activatePlan(userId, planId);
+            subscriptionService.activatePlan(userId, planId, payment.getId());
         } else {
             log.warn("Payment {} has no plan reference; subscription not activated", payment.getId());
         }
@@ -199,7 +199,7 @@ public class PaymentService {
 
             Long planId = planIdFrom(payment.getDescription());
             if (planId != null && payment.getUser() != null) {
-                subscriptionService.activatePlan(payment.getUser().getId(), planId);
+                subscriptionService.activatePlan(payment.getUser().getId(), planId, payment.getId());
                 log.info("Webhook activated plan {} for user {}", planId, payment.getUser().getId());
             } else {
                 log.warn("Payment {} has no plan reference; subscription not activated", payment.getId());
@@ -238,9 +238,11 @@ public class PaymentService {
         }
         payment.setStatus(PaymentStatus.REFUNDED);
         paymentRepository.save(payment);
-        if (payment.getUser() != null) {
-            subscriptionService.cancelActive(payment.getUser().getId());
-            log.info("Refund processed — plan cancelled for user {}", payment.getUser().getId());
+        boolean cancelled = subscriptionService.cancelActiveForPayment(payment.getId());
+        if (cancelled) {
+            log.info("Refund processed — subscription from payment {} cancelled", payment.getId());
+        } else {
+            log.info("Refund processed for payment {}; no active subscription from that payment to cancel", payment.getId());
         }
     }
 
@@ -251,7 +253,7 @@ public class PaymentService {
     }
 
     private boolean isGatewayConfigured() {
-        return !isBlank(keyId) && !keyId.startsWith("rzp_test_unconfigured");
+        return !isBlank(keyId) && !isBlank(keySecret) && !keyId.startsWith("rzp_test_unconfigured");
     }
 
     private Long planIdFrom(String description) {

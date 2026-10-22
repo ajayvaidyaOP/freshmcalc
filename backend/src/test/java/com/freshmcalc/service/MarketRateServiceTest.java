@@ -57,7 +57,7 @@ public class MarketRateServiceTest {
         RateDto.MarketRateResponse res = service.createRate(req, "admin@freshmcalc.example");
 
         assertEquals("Pomegranate", res.productName());
-        assertEquals("Dubai, UAE", res.marketName());
+        assertEquals("Dubai Wholesale Market", res.marketName());
         assertEquals("UAE", res.country());
         assertEquals("AED", res.currency());
         assertEquals("per box", res.pricingUnit());

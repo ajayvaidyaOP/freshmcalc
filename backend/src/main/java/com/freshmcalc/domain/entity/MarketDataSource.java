@@ -25,7 +25,7 @@ public class MarketDataSource extends BaseEntity {
     @Column(name = "endpoint_url", length = 500)
     private String endpointUrl;
 
-    @Column(name = "is_active")
+    @Column(name = "active")
     private Boolean active = false;
 
     @Column(name = "last_fetch_at")

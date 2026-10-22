@@ -62,11 +62,11 @@ export default function AccountDeletion() {
             <ul className="mt-2 list-disc space-y-1.5 pl-5 text-[14.5px] text-muted-foreground">
               <li>Your name, email, phone, company, city and country.</li>
               <li>Every saved cost sheet and calculation line.</li>
-              <li>Your active subscription is cancelled immediately (no further renewals).</li>
+              <li>Your active fixed-term plan access is cancelled immediately.</li>
             </ul>
             <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-              Payment and invoice records are kept in anonymised form for the period required by Indian tax law (8
-              years). Card details are never stored by FreshmCalc — they stay with Razorpay.
+              Payment records are kept in anonymised form for the period required by applicable tax/accounting law.
+              Card details are never stored by FreshmCalc — they stay with Razorpay.
             </p>
           </section>
 

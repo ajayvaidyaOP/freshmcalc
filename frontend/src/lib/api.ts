@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import axios from 'axios';
+import { demoAdapter } from './demo';
 
 /**
  * Backend controllers are mounted under /api/v1 (see Spring @RequestMapping).
@@ -18,7 +19,6 @@ api.interceptors.request.use(async (config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   // Demo mode: serve clearly-labelled sample data without a backend.
   if (localStorage.getItem('freshmcalc_demo') === '1') {
-    const { demoAdapter } = await import('./demo');
     config.adapter = demoAdapter as any;
   }
   return config;

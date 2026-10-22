@@ -1,5 +1,7 @@
 package com.freshmcalc.config.security;
 
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,6 +20,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -46,32 +49,35 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(errors -> errors
+                .authenticationEntryPoint((request, response, exception) ->
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authentication required.")))
             .authorizeHttpRequests(auth -> auth
                 // Profile is private even though it lives under /auth (GET/PATCH/DELETE)
-                requestMatchers("/api/v1/auth/me").authenticated()
+                .requestMatchers("/api/v1/auth/me").authenticated()
                 // Public
-                requestMatchers("/api/v1/auth/**").permitAll()
-                requestMatchers("/api/v1/public/**").permitAll()
+                .requestMatchers("/api/v1/auth/**").permitAll()
+                .requestMatchers("/api/v1/public/**").permitAll()
                 // OpenAPI docs
-                requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 // Rates are a paid feature: any signed-in user may call the
                 // endpoint, and MarketRateController then checks the plan
                 // (dubaiRatesAccess). Management stays ADMIN-only.
-                requestMatchers(HttpMethod.GET, "/api/v1/rates/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/v1/rates/**").authenticated()
                 // Products & ports: read public
-                requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
-                requestMatchers(HttpMethod.GET, "/api/v1/ports/**").permitAll()
-                requestMatchers(HttpMethod.GET, "/api/v1/routes/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/ports/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/routes/**").permitAll()
                 // Plan catalogue is public (pricing page); purchases and
                 // subscription status still require authentication.
-                requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans").permitAll()
                 // Payment webhooks come from Razorpay's servers, not a browser
                 // session. They carry an HMAC signature that WebhookController
                 // verifies against RAZORPAY_WEBHOOK_SECRET before processing.
-                requestMatchers(HttpMethod.POST, "/api/v1/webhooks/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/**").permitAll()
                 // Everything else requires authentication
-                anyRequest().authenticated()
+                .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

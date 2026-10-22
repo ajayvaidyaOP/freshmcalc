@@ -31,6 +31,9 @@ public class Subscription extends BaseEntity {
     @Column(name = "razorpay_customer_id", length = 100)
     private String razorpayCustomerId;
 
+    @Column(name = "source_payment_id", unique = true)
+    private Long sourcePaymentId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private SubscriptionStatus status = SubscriptionStatus.INACTIVE; // ACTIVE, INACTIVE, EXPIRED, CANCELLED, PAST_DUE
@@ -64,6 +67,9 @@ public class Subscription extends BaseEntity {
 
     public String getRazorpayCustomerId() { return razorpayCustomerId; }
     public void setRazorpayCustomerId(String razorpayCustomerId) { this.razorpayCustomerId = razorpayCustomerId; }
+
+    public Long getSourcePaymentId() { return sourcePaymentId; }
+    public void setSourcePaymentId(Long sourcePaymentId) { this.sourcePaymentId = sourcePaymentId; }
 
     public SubscriptionStatus getStatus() { return status; }
     public void setStatus(SubscriptionStatus status) { this.status = status; }

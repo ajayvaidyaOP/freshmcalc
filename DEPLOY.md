@@ -1,15 +1,14 @@
-# Deploy FreshmCalc in 15 minutes
+# Deploy FreshmCalc on a VPS
 
-The short, copy-paste version. Deep detail (why Docker, backups, monitoring,
-store submission) lives in [`docs/deployment.md`](docs/deployment.md).
+The short, copy-paste version. Deep operational detail lives in [`docs/deployment.md`](docs/deployment.md); verification gates and Play release steps are in [`docs/production-readiness.md`](docs/production-readiness.md). DNS, builds and reviews can take longer than the commands themselves.
 
 ```
 internet ──► nginx :80/:443 ──┬──► frontend (React SPA)
                               └──► backend (Spring Boot) ──► postgres
 ```
 
-**You need:** a Linux VPS (2 vCPU / 4 GB, Ubuntu 24.04), a domain, and DNS
-access. Roughly ₹400–1,200/month.
+**You need:** a Linux VPS (2 vCPU / 4 GB is a starting sizing hypothesis, Ubuntu 24.04), a domain, and DNS
+access. Provider pricing and required capacity vary; load-test before promising either.
 
 ---
 
@@ -56,8 +55,9 @@ Fill in at minimum:
 | `APP_PUBLIC_URL` | `https://your-domain.com` |
 | `ADMIN_EMAIL` | your email (creates the first admin) |
 | `ADMIN_PASSWORD` | a temporary strong password |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | test keys to start |
-| `RAZORPAY_WEBHOOK_SECRET` | any long random string; paste the same in Razorpay |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | leave empty for the first startup; configure after HTTPS |
+| `RAZORPAY_TEST_MODE` | `true` only with test keys; `false` with live keys |
+| `RAZORPAY_WEBHOOK_SECRET` | any long random string; paste the same in Razorpay when configuring webhooks |
 
 Leave `MAIL_HOST` empty for now — the app runs, password-reset emails just
 aren't delivered yet.
@@ -65,18 +65,13 @@ aren't delivered yet.
 ## 4. Start
 
 ```bash
+docker compose config --quiet
 docker compose up -d --build
 docker compose ps            # wait until all four say "healthy" (5–10 min first time)
 curl -s http://127.0.0.1/health
 ```
 
-Visit `http://YOUR_SERVER_IP/`. Log in with the admin account, change the
-password, then remove `ADMIN_PASSWORD` from `.env`:
-
-```bash
-nano .env                     # delete the ADMIN_PASSWORD line
-docker compose up -d backend
-```
+You can check the HTTP page, but **do not enter admin credentials until HTTPS is working**. Complete the next two steps first.
 
 ## 5. Point the domain at the server
 
@@ -97,11 +92,7 @@ cd /opt/freshmcalc/infrastructure
 ./scripts/init-letsencrypt.sh your-domain.com you@your-domain.com
 ```
 
-If it fails, retry once without hitting Let's Encrypt rate limits:
-
-```bash
-STAGING=1 ./scripts/init-letsencrypt.sh your-domain.com you@your-domain.com
-```
+For a rehearsal you may prefix the command with `STAGING=1`; staging certificates are not browser-trusted. Rerun without that variable to obtain the real certificate before users sign in.
 
 Then switch the app to HTTPS:
 
@@ -110,6 +101,13 @@ sed -i 's|^APP_PUBLIC_URL=.*|APP_PUBLIC_URL=https://your-domain.com|' .env
 sed -i 's|^CORS_ALLOWED_ORIGINS=.*|CORS_ALLOWED_ORIGINS=https://your-domain.com|' .env
 docker compose up -d backend
 curl -s https://your-domain.com/health
+```
+
+Now log in as admin over HTTPS, change the password if desired, then remove the bootstrap secret:
+
+```bash
+nano .env                     # delete the ADMIN_PASSWORD line
+docker compose up -d backend
 ```
 
 Auto-renew (certificates last 90 days):
@@ -127,7 +125,7 @@ crontab -e
    `https://your-domain.com/api/v1/webhooks/razorpay`
    with the same secret as `RAZORPAY_WEBHOOK_SECRET`, events:
    `payment.captured`, `payment.failed`, `order.paid`, `refund.created`,
-   `refund.processed`.
+   `refund.processed`, `payment.refunded`.
 4. Buy one plan yourself, check `/subscription` shows it active, then refund it
    in the dashboard and confirm the plan is cancelled.
 
@@ -187,9 +185,9 @@ git checkout <commit>
 cd infrastructure && docker compose up -d --build
 ```
 
-Database migrations are forward-only: a rollback of code keeps the migrated
-schema (that is fine — new columns are nullable), but never hand-edit
-`db/migration`.
+Database migrations are forward-only: a code rollback keeps the migrated
+schema. Verify that the old release is compatible with that schema before
+rolling back, and never hand-edit an already-applied `db/migration` file.
 
 ## Useful commands
 
@@ -208,8 +206,8 @@ docker compose up -d                     # start again
 ## What to check after going live
 
 - [ ] `https://your-domain.com` loads with a valid padlock
-- [ ] Sign up → sign in → save a cost sheet → download the PDF
-- [ ] A free account sees the upgrade card on **Dubai Live Rates**
+- [ ] With an entitled test account: sign in → calculate → save a cost sheet → download the PDF
+- [ ] A free account sees the upgrade card on **Dubai Live Rates** and cannot call the paid rates/save APIs directly
 - [ ] Password-reset email arrives
 - [ ] One real ₹499 payment activates the plan; refund cancels it
 - [ ] `https://your-domain.com/manifest.webmanifest` returns JSON (installable app)

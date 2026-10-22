@@ -21,10 +21,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/common/PageHeader';
+import { PlanLock } from '@/components/common/PlanLock';
 import { CostLinesEditor } from '@/components/calculator/CostLinesEditor';
 import { ResultPanel } from '@/components/calculator/ResultPanel';
 import { ratesService } from '@/services/rates.service';
@@ -42,6 +42,8 @@ import {
 } from '@/lib/export-calc';
 import { PRODUCT_PRESETS, defaultCostLines } from '@/lib/expense-presets';
 import { toast } from '@/hooks/use-toast';
+import { hasFeature } from '@/components/layout/nav-items';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------------------------------------------ form */
@@ -119,6 +121,10 @@ function loadDraft(): FormState {
 /* ------------------------------------------------------------------ page */
 
 export default function Calculator() {
+  const user = useCurrentUser();
+  const calculatorAllowed = hasFeature(user, 'calculatorAccess');
+  const pdfAllowed = hasFeature(user, 'pdfExportAccess');
+  const savedSheetsAllowed = hasFeature(user, 'savedCalculationsAccess');
   const [form, setForm] = React.useState<FormState>(() => loadDraft());
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState<any>(null);
@@ -127,6 +133,7 @@ export default function Calculator() {
   const { data: rates = [] } = useQuery({
     queryKey: ['rates'],
     queryFn: ratesService.listPublished,
+    enabled: calculatorAllowed && hasFeature(user, 'dubaiRatesAccess'),
   });
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -253,6 +260,10 @@ export default function Calculator() {
   });
 
   const onSave = async () => {
+    if (!savedSheetsAllowed) {
+      toast({ title: 'Plan required to save', description: 'Activate a plan with saved cost-sheet access.', variant: 'destructive' });
+      return;
+    }
     const problem = validate();
     if (problem) {
       toast({ title: 'Check your shipment', description: problem, variant: 'destructive' });
@@ -298,6 +309,10 @@ export default function Calculator() {
   };
 
   const onPreviewPdf = async () => {
+    if (!pdfAllowed) {
+      toast({ title: 'Plan required for PDF export', description: 'Activate a plan with PDF quotation access.', variant: 'destructive' });
+      return;
+    }
     const problem = validate();
     if (problem) {
       toast({ title: 'Complete the shipment first', description: problem, variant: 'destructive' });
@@ -355,6 +370,16 @@ export default function Calculator() {
 
   const enabledCosts = form.lines.filter((line) => line.enabled).length;
   const profitable = result.profitAed >= 0;
+
+  if (!calculatorAllowed) {
+    return (
+      <PlanLock
+        title="Export calculator access needs an active plan"
+        description="Subscribe or renew to calculate India → Dubai landed costs and profit with your shipment inputs."
+        benefits={['Complete export cost breakdown', 'Saved cost sheets with references', 'PDF quotations for buyers']}
+      />
+    );
+  }
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -588,7 +613,6 @@ export default function Calculator() {
               lines={form.lines}
               results={result.lines}
               fx={fx}
-              boxes={boxes}
               onUpdate={updateLine}
               onAdd={(line) => setForm((current) => ({ ...current, lines: [...current.lines, line] }))}
               onRemove={(id) => setForm((current) => ({ ...current, lines: current.lines.filter((l) => l.id !== id) }))}

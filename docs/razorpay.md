@@ -2,7 +2,7 @@
 
 FreshmCalc uses **server-created orders + server-side signature verification**.
 Secrets never reach the browser, and a plan is unlocked only when Razorpay's
-HMAC signature is verified on the backend.
+HMAC signature is verified on the backend. Each order buys a fixed access term; renewal is a separate manual purchase, not an automatic Razorpay subscription charge.
 
 ## Flow
 
@@ -79,7 +79,7 @@ In the Razorpay dashboard → Settings → Webhooks:
 |---|---|
 | URL | `https://your-domain.com/api/v1/webhooks/razorpay` |
 | Secret | same value as `RAZORPAY_WEBHOOK_SECRET` |
-| Active events | `payment.captured`, `payment.failed`, `order.paid`, `refund.created`, `refund.processed` |
+| Active events | `payment.captured`, `payment.failed`, `order.paid`, `refund.created`, `refund.processed`, `payment.refunded` |
 
 Behaviour:
 
@@ -87,7 +87,7 @@ Behaviour:
 |---|---|
 | `payment.captured`, `order.paid` | Finds the payment by order id, marks it SUCCESS, sets `paidAt`, activates the plan from the `PLAN:<id>` description. Already-successful payments are untouched. |
 | `payment.failed` | Marks the payment FAILED with the gateway reason. Never downgrades a successful payment. |
-| `refund.created` / `refund.processed` | Marks the payment REFUNDED and cancels the active subscription immediately. |
+| `refund.created` / `refund.processed` / `payment.refunded` | Marks that payment REFUNDED and cancels only the active subscription linked to that payment; a newer unrelated plan is left alone. |
 
 Every event id (`X-Razorpay-Event-Id`, falling back to a hash of the body) is
 stored in `webhook_events`; a duplicate is acknowledged with 200 and not
@@ -104,8 +104,8 @@ The native shells intentionally hide checkout:
 
 | Platform | Behaviour |
 |---|---|
-| Android app | “Manage your plan at freshmcalc.com”; no in-app purchase |
-| iOS app | Same — avoids Guideline 3.1.1 rejection |
+| Android app | Existing-plan sign-in/status and support contact; no in-app checkout |
+| iOS app | Same — reduces Guideline 3.1.1 risk but does not guarantee review approval |
 | Web / PWA | Full Razorpay checkout |
 
 If you later want in-app purchases, integrate **Google Play Billing** and
@@ -125,7 +125,8 @@ Verify all of these before going live:
 - [ ] Webhook with a bad signature → 400
 - [ ] Same webhook delivered twice → second is a no-op (check `webhook_events`)
 - [ ] `payment.failed` → payment FAILED, no subscription
-- [ ] `refund.processed` → payment REFUNDED **and** `GET /subscription` shows no active plan
+- [ ] `refund.processed` for the current payment → payment REFUNDED **and** `GET /subscription` shows no active plan
+- [ ] Buy a newer plan, then refund the older payment → the newer plan remains active
 - [ ] Close the browser immediately after paying → plan appears from the webhook alone
 - [ ] Refund/chargeback notifications enabled in the Razorpay dashboard
 

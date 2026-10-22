@@ -32,7 +32,7 @@ Pop-Location
 Write-Host "Setting up frontend..."
 Push-Location frontend
 if (!(Test-Path ".env")) {
-  New-Item -Path ".env" -Value "VITE_API_BASE=/api" -Force
+  New-Item -Path ".env" -Value "VITE_API_BASE=/api/v1" -Force
 }
 npm install
 Write-Host "Frontend ready. Run: npm run dev" -ForegroundColor Green

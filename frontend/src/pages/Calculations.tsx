@@ -18,9 +18,13 @@ import { generateQuotationPdf } from '@/lib/pdf';
 import { isNativeApp } from '@/lib/platform';
 import { formatAED, formatDate, formatNumber } from '@/lib/format';
 import { toast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { hasFeature } from '@/components/layout/nav-items';
 import { cn } from '@/lib/utils';
 
 export default function Calculations() {
+  const user = useCurrentUser();
+  const pdfAllowed = hasFeature(user, 'pdfExportAccess');
   const { data: calculations = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['calculations'],
     queryFn: calculationsService.list,
@@ -47,6 +51,10 @@ export default function Calculations() {
   }, [calculations]);
 
   const exportPdf = async (c: any) => {
+    if (!pdfAllowed) {
+      toast({ title: 'Plan required for PDF export', description: 'Renew a plan with PDF quotation access. Your saved sheet remains available.', variant: 'destructive' });
+      return;
+    }
     try {
       await generateQuotationPdf(c);
       toast({

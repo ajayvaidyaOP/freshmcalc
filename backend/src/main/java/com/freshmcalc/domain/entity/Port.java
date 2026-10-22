@@ -50,7 +50,7 @@ public class Port extends BaseEntity {
     @Column(name = "supports_reefer")
     private Boolean supportsReefer = false;
 
-    @Column(name = "is_active")
+    @Column(name = "active")
     private Boolean active = true;
 
     public Country getCountry() { return country; }
