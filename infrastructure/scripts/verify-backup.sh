@@ -36,7 +36,11 @@ if [ ${STATUS} -ne 0 ]; then
 fi
 
 for TABLE in users subscription_plans market_rates calculations payments flyway_schema_history; do
-  COUNT=$(psql -tA -U "${DB_USER}" -d "${VERIFY_DB}" -c "SELECT count(*) FROM ${TABLE};" 2>/dev/null || echo "missing")
+  if ! COUNT=$(psql -tA -U "${DB_USER}" -d "${VERIFY_DB}" -c "SELECT count(*) FROM ${TABLE};"); then
+    echo "RESTORE CHECK FAILED — required table ${TABLE} is missing or unreadable." >&2
+    dropdb -U "${DB_USER}" --if-exists "${VERIFY_DB}"
+    exit 1
+  fi
   echo "  ${TABLE}: ${COUNT}"
 done
 

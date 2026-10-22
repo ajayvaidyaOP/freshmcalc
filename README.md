@@ -14,6 +14,8 @@ for a subscription business.
 > **Business rule (do not change):** every selling price shown in the app is a **Dubai, UAE
 > market rate in AED**. India is only the sourcing/origin market. Indian domestic prices are
 > never presented as Dubai rates.
+>
+> **Release status:** read [`docs/production-readiness.md`](docs/production-readiness.md) before deploying or submitting a store build. Frontend checks and direct PostgreSQL migration/backup checks have run, but that runbook explicitly separates them from the Spring/Hibernate, deployment and signed-native-build gates that still need to pass in the release environment.
 
 ---
 
@@ -38,11 +40,11 @@ for a subscription business.
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18 + Vite 5 + TypeScript, Tailwind CSS 3, shadcn/ui (Radix), React Router 6, TanStack Query, React Hook Form + Zod, Recharts, jsPDF |
+| Frontend | React 18 + Vite 8 + TypeScript, Tailwind CSS 3, shadcn/ui (Radix), React Router 7, TanStack Query, React Hook Form + Zod, Recharts, jsPDF |
 | Mobile | Installable PWA (manifest + service worker) and Capacitor 7 wrappers for Android/iOS |
 | Backend | Java 21, Spring Boot 3.3.5 (Web, Security/JWT, Data JPA, Validation, Actuator), Gradle 8.11 (wrapper included) |
 | Database | PostgreSQL 16 + Flyway migrations (`backend/src/main/resources/db/migration`) |
-| Payments | Razorpay orders + server-side signature verification (`razorpay-java`), test mode by default |
+| Payments | Fixed-term access via Razorpay orders + server-side signature verification (`razorpay-java`); manual renewal, no auto-debit. Test mode is a development setting, not the production default |
 | API docs | springdoc OpenAPI — Swagger UI at `/swagger-ui.html` |
 | Tests | Vitest for the costing engine (`frontend/src/lib/export-calc.test.ts`) |
 | Deployment | Docker + Docker Compose + Nginx (`infrastructure/`) |
@@ -86,7 +88,7 @@ Install once, then verify each in a terminal:
 | Git | any recent | `git --version` | https://git-scm.com |
 | VS Code | latest | — | https://code.visualstudio.com |
 | JDK | **21** (LTS) | `java -version` | https://adoptium.net (Temurin 21) |
-| Node.js | **20 LTS or newer** | `node -v` and `npm -v` | https://nodejs.org |
+| Node.js | **22.12+** | `node -v` and `npm -v` | https://nodejs.org |
 | Docker Desktop | latest | `docker --version` | https://www.docker.com (needed for the database, and for deployment) |
 
 > Gradle does **not** need a separate install — the project ships the Gradle wrapper
@@ -127,7 +129,7 @@ Copy-Item frontend/.env.example frontend/.env
 Copy-Item infrastructure/.env.example infrastructure/.env
 ```
 
-For local development the examples work almost as-is. Check these values in **`backend/.env`**:
+For local development the backend/frontend examples work almost as-is. The infrastructure example intentionally has no credentials: even a database-only Compose command requires non-empty `DB_PASSWORD` and `JWT_SECRET`. For a disposable local database, set `DB_PASSWORD=freshmcalc` and the development JWT value below in `infrastructure/.env`; generate fresh random values for any deployed server. Check these values in **`backend/.env`**:
 
 ```properties
 DB_URL=jdbc:postgresql://localhost:5432/freshmcalc
@@ -150,7 +152,7 @@ VITE_API_BASE=/api/v1
 In VS Code: **Terminal → Run Task… → `DB: Start PostgreSQL (Docker)`**, or run it manually:
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d postgres
+docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml up -d postgres
 docker ps          # freshmcalc-postgres should be "healthy" within ~15 seconds
 ```
 
@@ -190,7 +192,7 @@ Get-Content .env | ForEach-Object { if ($_ -match '^([^#=]+)=(.*)$') { Set-Item 
 First run downloads Gradle + dependencies (a few minutes). Success looks like:
 
 ```
-Flyway          : Successfully applied 2 migrations
+Flyway          : Successfully applied 4 migrations
 Admin bootstrap : created ADMIN account admin@freshmcalc.com
 Tomcat started on port 8080
 Started FreshmcalcApplication
@@ -200,7 +202,7 @@ Verify in the browser:
 
 - Health: <http://localhost:8080/actuator/health> → `{"status":"UP"}`
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
-- Public rates API: <http://localhost:8080/api/v1/rates> → `[]` (empty until an admin publishes rates)
+- Rates API: `GET /api/v1/rates` requires a signed-in account with the rates entitlement; an unauthenticated browser request correctly returns 401.
 
 ### Step 5 — Run the frontend (port 5173)
 
@@ -249,7 +251,7 @@ If all 5 work, the full stack is healthy. 🎉
 | `ADMIN_FIRST_NAME` | no | `Admin` | Display name for the bootstrap admin |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | for payments | — | Razorpay API keys (test keys are fine locally). Without them the app still runs; checkout stays disabled |
 | `RAZORPAY_WEBHOOK_SECRET` | for webhooks | — | Verifies Razorpay webhook signatures (required for reconcile/refunds) |
-| `RAZORPAY_TEST_MODE` | no | `true` | Set `false` only with live keys in production |
+| `RAZORPAY_TEST_MODE` | no | `true` locally; `false` in Docker/prod | Use `true` with test keys; keep production `false` |
 | `APP_PUBLIC_URL` | for emails | `http://localhost:5173` | Base URL in password-reset links (no trailing slash) |
 | `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` | for reset emails | — / `587` | SMTP. Empty host = the app runs but reset emails can't be delivered |
 | `MAIL_FROM` | no | `no-reply@freshmcalc.com` | From address |
@@ -392,11 +394,11 @@ iOS/Android payment rules for subscriptions — are in
 | Mobile — native build | `cd frontend && npm run build:app` |
 | Mobile — Android | `cd frontend && npm run app:android` (needs Android Studio) |
 | Mobile — iOS | `cd frontend && npm run app:ios` (needs macOS + Xcode) |
-| Database only | `docker compose -f infrastructure/docker-compose.yml up -d postgres` |
-| Stop database | `docker compose -f infrastructure/docker-compose.yml down` *(add `-v` to also delete data)* |
+| Database only | `docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml up -d postgres` |
+| Stop database | `docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml down` *(add `-v` to also delete data)* |
 
-Flyway note: migrations run automatically on backend startup (`V1` schema + `V2` reference data
-including subscription plans ₹499/₹1,299/₹4,999). Never edit an applied migration — add a new `V3__*.sql`.
+Flyway note: migrations run automatically on backend startup (`V1` schema, `V2` reference data,
+then the payment-link and rate-history migrations). Never edit an applied migration — add the next sequential migration (currently `V5__*.sql`).
 
 ---
 
@@ -416,10 +418,10 @@ is a long-term subscription product, and Docker is what makes that sustainable:
 | Upgrade Postgres = risky manual migration | Change the image tag, keep the volume |
 
 You do **not** need Kubernetes, a service mesh or a cloud platform yet. A single
-2 vCPU / 4 GB VPS runs this stack comfortably for the first few hundred traders
-(roughly ₹400–1,200 per month). Add a managed Postgres and a second API
-container only when traffic demands it — the API is stateless (JWT), so that
-step needs no code changes.
+2 vCPU / 4 GB VPS is a starting sizing hypothesis, not a measured capacity or price
+guarantee; load-test your own workload. Add managed Postgres and a second API
+container only when traffic demands it — the API is stateless (JWT), although
+scaling still needs deployment/database/connection-pool testing.
 
 ### Steps
 
@@ -441,6 +443,7 @@ openssl rand -base64 24     # DB_PASSWORD
 openssl rand -base64 48     # JWT_SECRET
 nano .env                   # secrets, domain, admin, Razorpay, SMTP
 
+docker compose config --quiet
 docker compose up -d --build
 docker compose ps           # all services "healthy"
 curl -s http://127.0.0.1/health
@@ -473,9 +476,9 @@ CDN).
 - [ ] Backend port `8080` firewalled — the public entry point should be Nginx (80/443) only
 - [ ] Logged in as admin once → then **remove `ADMIN_PASSWORD`** from the env and restart the backend
 - [ ] `CORS_ALLOWED_ORIGINS` set to your real domain
-- [ ] **HTTPS**: obtain certificates (e.g. Certbot/Let's Encrypt), mount them into the `nginx`
-      service and add a `443 ssl` server block in `infrastructure/nginx/nginx.conf`
-      (port 443 is already published). Terminate TLS at Nginx — do not expose Spring Boot directly
+- [ ] **HTTPS**: run `scripts/init-letsencrypt.sh` after DNS is live; it creates the domain-specific
+      `infrastructure/nginx/https.conf` and uses the existing Certbot mounts (ports 80/443 are published).
+      Terminate TLS at Nginx — do not expose Spring Boot directly
 - [ ] Razorpay live keys + `RAZORPAY_TEST_MODE=false`; webhook URL + secret set
       (events: `payment.captured`, `payment.failed`, `order.paid`, `refund.created`,
       `refund.processed`) — see `docs/razorpay.md`
@@ -484,7 +487,7 @@ CDN).
 - [ ] Behind Cloudflare/ALB: fill `infrastructure/nginx/realip.conf` so rate limits
       see the real client IP (`scripts/cloudflare-realip.sh` regenerates it)
 - [ ] Backup cron scheduled **and** `verify-backup.sh` restore rehearsal passed
-      (dumps are on the host at `infrastructure/backups/`, synced off-site)
+      (dumps are on the host at `infrastructure/backups/`; configure and test a separate off-site copy yourself)
 - [ ] Uptime monitor on `/health`; every 5xx log line carries the `X-Request-Id`
       returned to the user, so support can find the trace
 - [ ] Legal pages reviewed for DPDP/UAE requirements; store consoles point at

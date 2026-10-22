@@ -23,6 +23,16 @@ public class PortController {
         return ResponseEntity.ok(portService.listPorts());
     }
 
+    @GetMapping("/countries")
+    public ResponseEntity<List<PortDto.CountryResponse>> listCountries() {
+        return ResponseEntity.ok(portService.listCountries());
+    }
+
+    @GetMapping("/cities")
+    public ResponseEntity<List<PortDto.CityResponse>> listCities(@RequestParam Long countryId) {
+        return ResponseEntity.ok(portService.listCities(countryId));
+    }
+
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PortDto.PortResponse> createPort(@Valid @RequestBody PortDto.CreatePortRequest req) {

@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
     Optional<Subscription> findByUserIdAndStatusOrderByCurrentPeriodEndDesc(Long userId, SubscriptionStatus status);
+    Optional<Subscription> findBySourcePaymentIdAndStatus(Long sourcePaymentId, SubscriptionStatus status);
 }

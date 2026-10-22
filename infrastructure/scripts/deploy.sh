@@ -15,9 +15,12 @@ echo "→ Pulling the latest code"
 git -C .. pull --ff-only
 
 echo "→ Backing up the database before the update"
-if docker compose ps --status running --services | grep -qx postgres; then
-  docker compose exec -T postgres /backup/backup.sh || echo "  (backup skipped — check logs)"
+if ! docker compose ps --status running --services | grep -qx postgres; then
+  echo "❌ PostgreSQL is not running; refusing to deploy without a pre-update backup." >&2
+  exit 1
 fi
+# A failed backup must stop the deployment. Never turn this into a warning.
+docker compose exec -T postgres /backup/backup.sh
 
 echo "→ Building and starting"
 docker compose up -d --build

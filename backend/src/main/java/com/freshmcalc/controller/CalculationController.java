@@ -33,6 +33,7 @@ public class CalculationController {
             @AuthenticationPrincipal CustomerUserDetails principal,
             @Valid @RequestBody CalculationDto.CalculationRequest req) {
         requireFeature(principal, AccessControlService.Feature.CALCULATOR);
+        requireFeature(principal, AccessControlService.Feature.SAVED_SHEETS);
         return ResponseEntity.ok(calculationService.createCalculation(requireUserId(principal), req));
     }
 

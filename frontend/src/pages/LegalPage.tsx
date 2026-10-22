@@ -42,7 +42,7 @@ const PRIVACY: Section[] = [
       <ul className="list-disc space-y-1.5 pl-5">
         <li>To run the calculator, store your sheets and show live Dubai rates.</li>
         <li>To take subscription payments and reconcile renewals and refunds.</li>
-        <li>To send password-reset and billing emails — never marketing unless you opt in.</li>
+        <li>To send password-reset and essential service emails — never marketing unless you opt in.</li>
         <li>To detect abuse and meet tax and accounting obligations.</li>
       </ul>
     ),
@@ -51,8 +51,8 @@ const PRIVACY: Section[] = [
     heading: '4. Who we share it with',
     body: (
       <>
-        Only service providers who help us run FreshmCalc: Razorpay (payments), our email provider (password resets and
-        receipts) and our hosting provider (servers in India and the EU). We do not sell your data and we do not share
+        Only service providers who help us run FreshmCalc: Razorpay (payments), our email provider (password resets)
+        and our hosting provider (in the region selected for the deployment). We do not sell your data and we do not share
         your cost sheets with other traders.
       </>
     ),
@@ -62,8 +62,8 @@ const PRIVACY: Section[] = [
     body: (
       <>
         Account and saved-sheet data stays while your account is active. Deleting your account from Settings wipes your
-        profile, cost sheets and active plan immediately. Payment records are retained for statutory accounting (8
-        years) in an anonymised form. Server logs roll off after 30 days.
+        profile, cost sheets and active plan immediately. Payment records are retained in anonymised form for the period
+        required by applicable tax and accounting laws. Server logs are retained only as needed for security and troubleshooting.
       </>
     ),
   },
@@ -71,7 +71,7 @@ const PRIVACY: Section[] = [
     heading: '6. Your rights',
     body: (
       <>
-        You can view and correct your profile in Settings, export a cost sheet as PDF at any time, and delete your
+        You can view and correct your profile in Settings, view your saved cost sheets, and delete your
         account in one step. For a machine-readable copy of your data or any other request, write to {CONTACT} — we
         respond within 30 days. You can also complain to the Data Protection Board of India.
       </>
@@ -127,10 +127,10 @@ const TERMS: Section[] = [
     heading: '3. Plans, billing and renewals',
     body: (
       <ul className="list-disc space-y-1.5 pl-5">
-        <li>Plans are billed in Indian Rupees through Razorpay, monthly or annually as shown at checkout.</li>
-        <li>Subscriptions renew automatically until cancelled. Cancel any time from Subscription & Billing; access continues to the end of the paid period.</li>
+        <li>Plans are billed in Indian Rupees through Razorpay for the monthly, quarterly or annual term shown at checkout.</li>
+        <li>Each purchase provides fixed-term access. There is no automatic renewal or auto-debit; renew by making another purchase after choosing a plan.</li>
         <li>Prices may change with 30 days' notice. Existing paid periods are never repriced mid-term.</li>
-        <li>Failed renewals are retried; features lock after the grace period until payment succeeds.</li>
+        <li>A failed or unverified payment does not activate access. Paid features lock when the purchased term ends.</li>
       </ul>
     ),
   },

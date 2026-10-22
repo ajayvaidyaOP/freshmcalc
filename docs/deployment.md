@@ -1,6 +1,6 @@
 # Production deployment
 
-> Looking for the fast path? [`../DEPLOY.md`](../DEPLOY.md) is the 15-minute
+> Looking for the fast path? [`../DEPLOY.md`](../DEPLOY.md) is the condensed
 > walkthrough. This page is the reference: reasoning, operations, monitoring and
 > the go-live checklist.
 
@@ -20,12 +20,12 @@ All public traffic goes through Nginx.
 ## Why Docker for this product
 
 - Reproducible builds (JDK 21, Node 22, Postgres 16 pinned in images)
-- One-command deploys and rollbacks; dependency layers are cached
+- Reproducible deploys and explicit release rollback procedures; dependency layers are cached
 - Health-checked startup order: Postgres → API → web → edge
 - Secrets injected from `.env` at runtime, never baked into images
 - Straightforward path to scale: managed Postgres + multiple API containers
 
-A 2 vCPU / 4 GB VPS is enough for the first few hundred traders.
+A 2 vCPU / 4 GB VPS is a starting size, not a benchmark guarantee; load-test before choosing capacity.
 
 ## Before you start (5 minutes of prep)
 
@@ -73,8 +73,9 @@ CORS_ALLOWED_ORIGINS=https://your-domain.com
 APP_PUBLIC_URL=https://your-domain.com
 ADMIN_EMAIL=you@your-domain.com
 ADMIN_PASSWORD=<temporary strong password>
-RAZORPAY_KEY_ID=rzp_test_...        # test keys first
-RAZORPAY_KEY_SECRET=...
+RAZORPAY_KEY_ID=                    # leave empty for first startup
+RAZORPAY_KEY_SECRET=
+RAZORPAY_TEST_MODE=false            # use true only when you later add test keys
 RAZORPAY_WEBHOOK_SECRET=<random string, same as in Razorpay dashboard>
 MAIL_HOST=smtp.zoho.in              # optional now, required before launch
 MAIL_PORT=587
@@ -90,9 +91,7 @@ docker compose ps                     # wait until every service says "healthy"
 curl -s http://127.0.0.1/health       # {"status":"UP",...}
 ```
 
-Open `http://<server-ip>/` — the site loads over plain HTTP. Log in with the
-admin account, change the password, then **remove `ADMIN_PASSWORD` from `.env`**
-and `docker compose up -d backend`.
+Open `http://<server-ip>/` only to check the page. **Do not enter credentials over plain HTTP.** After HTTPS works, log in with the admin account, then **remove `ADMIN_PASSWORD` from `.env`** and run `docker compose up -d backend`.
 
 > First build takes 5–10 minutes (Gradle + npm). Later builds reuse layers and
 > take ~1 minute.
@@ -162,7 +161,7 @@ cd infrastructure && docker compose up -d --build
 ```
 
 Flyway migrations run automatically on startup. **Never edit an applied
-migration** — add `V3__*.sql` instead. A migration that fails blocks the
+migration** — add the next sequential migration (currently `V5__*.sql`) instead. A migration that fails blocks the
 backend from starting, so check `docker compose logs backend` first.
 
 ## Environment-based configuration

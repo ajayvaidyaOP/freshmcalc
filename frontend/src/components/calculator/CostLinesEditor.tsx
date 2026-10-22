@@ -25,7 +25,6 @@ interface CostLinesEditorProps {
   lines: CostLine[];
   results: CostLineResult[];
   fx: number;
-  boxes: number;
   onUpdate: (id: string, patch: Partial<CostLine>) => void;
   onAdd: (line: CostLine) => void;
   onRemove: (id: string) => void;
@@ -41,7 +40,6 @@ export function CostLinesEditor({
   lines,
   results,
   fx,
-  boxes,
   onUpdate,
   onAdd,
   onRemove,

@@ -12,6 +12,7 @@ import { subscriptionsService } from '@/services/subscriptions.service';
 import { FALLBACK_PLANS } from '@/lib/sample-data';
 import { formatPaise } from '@/lib/format';
 import { getAuth } from '@/lib/api';
+import { isNativeApp } from '@/lib/platform';
 import { cn } from '@/lib/utils';
 
 const PLAN_FEATURES = [
@@ -22,7 +23,7 @@ const PLAN_FEATURES = [
 ] as const;
 
 const INCLUDED_EVERYWHERE = [
-  'Price history & 7-day trends',
+  'Published price history & trends',
   'Ports, routes & freight reference',
   'Mobile, tablet & desktop access',
   'Email support (Mon–Sat)',
@@ -37,9 +38,10 @@ function monthsOf(cycle?: string) {
 export default function Pricing() {
   const { data, isLoading, isError } = useQuery({ queryKey: ['plans'], queryFn: subscriptionsService.listPlans });
   const { token } = getAuth();
+  const native = isNativeApp();
   const usingFallback = isError || !data || data.length === 0;
   const plans = usingFallback && !isLoading ? FALLBACK_PLANS : data || [];
-  const ctaTo = token ? '/subscription' : '/register';
+  const ctaTo = native ? (token ? '/subscription' : '/login') : (token ? '/subscription' : '/register');
 
   return (
     <div className="relative overflow-hidden">
@@ -126,7 +128,7 @@ export default function Pricing() {
 
                     <Button asChild variant={popular ? 'lime' : 'default'} size="lg" className="mt-7 w-full" disabled={!plan.active}>
                       <Link to={ctaTo}>
-                        {token ? 'Subscribe now' : 'Get started'} <ArrowRight className="h-[18px] w-[18px]" />
+                        {native ? (token ? 'View plan status' : 'Sign in') : (token ? 'Subscribe now' : 'Get started')} <ArrowRight className="h-[18px] w-[18px]" />
                       </Link>
                     </Button>
                     <p className={cn('mt-3 text-center text-xs', popular ? 'text-brand-200/70' : 'text-muted-foreground')}>
@@ -158,7 +160,7 @@ export default function Pricing() {
                 <p className="text-sm leading-snug">
                   <strong>Secure payments via Razorpay</strong>
                   <br />
-                  <span className="text-muted-foreground">UPI, cards & net-banking. Cancel anytime — access stays till period end.</span>
+                  <span className="text-muted-foreground">UPI, cards & net-banking on the web. Fixed-term access with no automatic renewal.</span>
                 </p>
               </div>
             </div>

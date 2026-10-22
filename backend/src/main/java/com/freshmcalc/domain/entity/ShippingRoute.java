@@ -36,7 +36,7 @@ public class ShippingRoute extends BaseEntity {
     @Column(name = "transshipment_legs", length = 500)
     private String transshipmentLegs;
 
-    @Column(name = "is_operational")
+    @Column(name = "operational")
     private Boolean operational = false;
 
     @Column(name = "activated_at")

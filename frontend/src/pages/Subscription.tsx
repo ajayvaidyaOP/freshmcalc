@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { AlertCircle, ArrowRight, BadgePercent, CalendarClock, Check, Crown, Info, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
+import { ArrowRight, BadgePercent, CalendarClock, Check, Crown, Info, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/common/PageHeader';
 import { subscriptionsService } from '@/services/subscriptions.service';
 import { paymentsService } from '@/services/payments.service';
-import { FALLBACK_PLANS } from '@/lib/sample-data';
 import { formatDate, formatPaise } from '@/lib/format';
 import { apiError, getAuth, refreshUser } from '@/lib/api';
 import { isDemoMode } from '@/lib/demo';
@@ -53,8 +52,7 @@ export default function Subscription() {
   const [verifying, setVerifying] = React.useState(false);
   const native = isNativeApp();
 
-  const usingFallback = plansQuery.isError || (!plansQuery.isLoading && (!plansQuery.data || plansQuery.data.length === 0));
-  const plans = usingFallback ? FALLBACK_PLANS : plansQuery.data || [];
+  const plans = plansQuery.data || [];
   const subscription = subQuery.data;
   const subActive = Boolean(subscription?.active);
 
@@ -313,8 +311,13 @@ export default function Subscription() {
             })}
           </div>
         )}
-        {usingFallback && !plansQuery.isLoading && (
-          <p className="mt-3 text-xs text-muted-foreground">Showing standard plans while the server catalogue is unavailable.</p>
+        {!plansQuery.isLoading && (plansQuery.isError || plans.length === 0) && (
+          <Card className="mt-3">
+            <CardContent className="flex flex-col items-start gap-3 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-muted-foreground">The live plan catalogue is unavailable, so checkout is disabled. No fallback plan can be purchased.</p>
+              <Button variant="outline" size="sm" onClick={() => plansQuery.refetch()}>Retry</Button>
+            </CardContent>
+          </Card>
         )}
       </div>
 
@@ -341,8 +344,8 @@ export default function Subscription() {
             <CardTitle className="text-base">Good to know</CardTitle>
           </CardHeader>
           <CardContent className="text-sm leading-relaxed text-muted-foreground">
-            Access stays active till the end of your billing period even if you cancel. If checkout doesn't open,
-            payments may still be in configuration mode — write to support@freshmcalc.com with your account email.
+            Plans are fixed-term access with no automatic renewal or auto-debit; buy a new term when you want to renew.
+            If checkout doesn't open, payments may still be in configuration mode — write to support@freshmcalc.com with your account email.
             {' '}See the <Link to="/pricing" className="font-bold text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">pricing page</Link> for a full feature comparison.
           </CardContent>
         </Card>

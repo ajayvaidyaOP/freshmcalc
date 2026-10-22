@@ -3,6 +3,7 @@ package com.freshmcalc.dto;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -32,11 +33,11 @@ public class RateDto {
     ) {}
 
     public record CreateMarketRateRequest(
-        Long productVarietyId,
+        @NotNull Long productVarietyId,
         String marketName,
         String country,
         String city,
-        @NotNull @DecimalMin("0") BigDecimal priceAmount,
+        @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal priceAmount,
         String currency,
         @NotBlank String pricingUnit,
         String packagingDetails,
@@ -50,7 +51,7 @@ public class RateDto {
         String marketName,
         String country,
         String city,
-        BigDecimal priceAmount,
+        @DecimalMin(value = "0", inclusive = false) BigDecimal priceAmount,
         String currency,
         String pricingUnit,
         String packagingDetails,
@@ -63,7 +64,7 @@ public class RateDto {
     ) {}
 
     public record PublishRateRequest(
-        String status,
+        @Pattern(regexp = "DRAFT|PUBLISHED|STALE") String status,
         String updatedBy
     ) {}
 }

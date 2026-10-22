@@ -1,6 +1,8 @@
 package com.freshmcalc.exception;
 
 import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +22,8 @@ import java.util.Map;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex, WebRequest request) {
@@ -68,12 +72,17 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleIntegrity(DataIntegrityViolationException ex, WebRequest request) {
-        return build(HttpStatus.CONFLICT, "Data integrity violation: " + ex.getMostSpecificCause().getMessage(), request);
+        log.warn("Database constraint rejected a request: {}", ex.getMostSpecificCause().getMessage());
+        return build(HttpStatus.CONFLICT, "The request conflicts with existing data. Please check the values and try again.", request);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, WebRequest request) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred: " + ex.getMessage(), request);
+        // Keep SQL/provider/internal details out of API responses. The complete
+        // exception stays in server logs with the X-Request-Id from the MDC.
+        log.error("Unhandled request exception", ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR,
+            "An unexpected error occurred. Please contact support with the X-Request-Id.", request);
     }
 
     private ResponseEntity<ErrorResponse> build(HttpStatus status, String message, WebRequest request) {
@@ -87,5 +96,5 @@ public class GlobalExceptionHandler {
 
     public record ErrorResponse(int status, String error, Instant timestamp, String path) {}
     public record ValidationErrorResponse(int status, String error, Instant timestamp, String path,
-                                          Map<String, String> fields) {}
+                                          Map<String, String> fieldErrors) {}
 }

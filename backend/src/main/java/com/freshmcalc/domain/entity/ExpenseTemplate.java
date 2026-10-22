@@ -30,7 +30,7 @@ public class ExpenseTemplate extends BaseEntity {
     @Column(name = "percentage_base", length = 100)
     private String percentageBase; // e.g. product_cost, freight
 
-    @Column(name = "is_applicable_by_default")
+    @Column(name = "applicable_by_default")
     private Boolean applicableByDefault = true;
 
     @Column(name = "notes", length = 500)

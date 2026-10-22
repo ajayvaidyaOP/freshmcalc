@@ -3,7 +3,6 @@ package com.freshmcalc.domain.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
-import java.time.Instant;
 
 /**
  * Immutable audit log for admin actions and data changes.
@@ -36,9 +35,6 @@ public class AuditLog extends BaseEntity {
     @Column(name = "ip_address", length = 50)
     private String ipAddress;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt = Instant.now();
-
     public String getActor() { return actor; }
     public void setActor(String actor) { this.actor = actor; }
 
@@ -63,6 +59,4 @@ public class AuditLog extends BaseEntity {
     public String getIpAddress() { return ipAddress; }
     public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
 
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

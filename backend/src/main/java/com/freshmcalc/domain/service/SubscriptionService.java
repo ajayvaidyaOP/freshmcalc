@@ -46,6 +46,10 @@ public class SubscriptionService {
      * endpoint without a server-side payment verification step.
      */
     public SubscriptionDto.SubscriptionResponse activatePlan(Long userId, Long planId) {
+        return activatePlan(userId, planId, null);
+    }
+
+    public SubscriptionDto.SubscriptionResponse activatePlan(Long userId, Long planId, Long sourcePaymentId) {
         if (userId == null || planId == null) {
             throw new BadRequestException("User and plan are required to activate a subscription.");
         }
@@ -65,6 +69,7 @@ public class SubscriptionService {
             });
 
         Subscription sub = new Subscription();
+        sub.setSourcePaymentId(sourcePaymentId);
         sub.setUser(user);
         sub.setPlan(plan);
         sub.setStatus(SubscriptionStatus.ACTIVE);
@@ -126,6 +131,19 @@ public class SubscriptionService {
                 sub.setEndedAt(Instant.now());
                 subscriptionRepository.save(sub);
             });
+    }
+
+    /** Cancel only the active subscription created by the refunded payment. */
+    public boolean cancelActiveForPayment(Long paymentId) {
+        if (paymentId == null) return false;
+        return subscriptionRepository.findBySourcePaymentIdAndStatus(paymentId, SubscriptionStatus.ACTIVE)
+            .map(sub -> {
+                sub.setStatus(SubscriptionStatus.CANCELLED);
+                sub.setEndedAt(Instant.now());
+                subscriptionRepository.save(sub);
+                return true;
+            })
+            .orElse(false);
     }
 
     public boolean hasActiveSubscription(Long userId) {

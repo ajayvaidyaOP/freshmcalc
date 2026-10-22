@@ -97,7 +97,7 @@ public class CalculationServiceTest {
         CalculationDto.CalculationRequest req = new CalculationDto.CalculationRequest(
             "Green chilli", null, null, null, "Mumbai", "Mundra", "UAE", "Dubai",
             "Jebel Ali Port, Dubai", "20FT", 5, new BigDecimal("50"), new BigDecimal("500"),
-            null, null, new BigDecimal("0.05"), "Manual", null, List.of(item));
+            null, null, null, null, new BigDecimal("0.05"), "Manual", null, List.of(item));
 
         CalculationDto.CalculationResponse res = service.createCalculation(2L, req);
         // 1000 INR * 0.05 = 50 AED
@@ -110,6 +110,6 @@ public class CalculationServiceTest {
         User owner = new User(); owner.setId(1L);
         calc.setUser(owner);
         when(calculationRepository.findById(99L)).thenReturn(java.util.Optional.of(calc));
-        assertThrows(IllegalArgumentException.class, () -> service.getCalculation(99L, 2L));
+        assertThrows(com.freshmcalc.exception.BadRequestException.class, () -> service.getCalculation(99L, 2L));
     }
 }

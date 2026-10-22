@@ -38,9 +38,9 @@ public class RequestIdFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
         String incoming = request.getHeader(HEADER);
-        String requestId = (incoming != null && !incoming.isBlank() && incoming.length() <= 64)
+        String requestId = (incoming != null && incoming.matches("[A-Za-z0-9._-]{1,64}"))
                 ? incoming
-                : UUID.randomUUID().toString().substring(0, 8);
+                : UUID.randomUUID().toString();
 
         MDC.put(MDC_KEY, requestId);
         response.setHeader(HEADER, requestId);

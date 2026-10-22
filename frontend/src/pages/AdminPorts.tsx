@@ -24,11 +24,24 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 const portSchema = z.object({
+  countryId: z.coerce.number().min(1, 'Select a country'),
+  cityId: z.coerce.number().min(1, 'Select a city'),
   name: z.string().min(1, 'Port name is required'),
   unlocode: z.string().min(1, 'UN/LOCODE is required'),
   portType: z.string().min(1),
   supportsContainer: z.boolean(),
   supportsReefer: z.boolean(),
+});
+
+const routeSchema = z.object({
+  originPortId: z.coerce.number().min(1, 'Select an origin port'),
+  destinationPortId: z.coerce.number().min(1, 'Select a destination port'),
+  transitTimeDays: z.coerce.number().int().positive('Enter a valid transit time'),
+  transitTimeSource: z.string().optional(),
+  operational: z.boolean(),
+}).refine((data) => data.originPortId !== data.destinationPortId, {
+  message: 'Origin and destination must be different',
+  path: ['destinationPortId'],
 });
 
 const quoteSchema = z.object({
@@ -44,13 +57,26 @@ export default function AdminPorts() {
   const portsQ = useQuery({ queryKey: ['ports'], queryFn: portsService.listPorts });
   const routesQ = useQuery({ queryKey: ['routes'], queryFn: routesService.listRoutes });
   const quotesQ = useQuery({ queryKey: ['freight-quotes'], queryFn: routesService.listFreightQuotes });
+  const countriesQ = useQuery({ queryKey: ['port-countries'], queryFn: portsService.listCountries });
   const ports = portsQ.data || [];
   const routes = routesQ.data || [];
   const quotes = quotesQ.data || [];
+  const countries = countriesQ.data || [];
 
   const portForm = useForm<z.infer<typeof portSchema>>({
     resolver: zodResolver(portSchema),
-    defaultValues: { name: '', unlocode: '', portType: 'SEA', supportsContainer: true, supportsReefer: true },
+    defaultValues: { countryId: 0, cityId: 0, name: '', unlocode: '', portType: 'SEA', supportsContainer: true, supportsReefer: true },
+  });
+  const selectedCountryId = portForm.watch('countryId');
+  const citiesQ = useQuery({
+    queryKey: ['port-cities', selectedCountryId],
+    queryFn: () => portsService.listCities(selectedCountryId),
+    enabled: selectedCountryId > 0,
+  });
+  const cities = citiesQ.data || [];
+  const routeForm = useForm<z.infer<typeof routeSchema>>({
+    resolver: zodResolver(routeSchema),
+    defaultValues: { originPortId: 0, destinationPortId: 0, transitTimeDays: 14, transitTimeSource: '', operational: true },
   });
   const quoteForm = useForm<z.infer<typeof quoteSchema>>({
     resolver: zodResolver(quoteSchema),
@@ -61,10 +87,21 @@ export default function AdminPorts() {
     try {
       await portsService.createPort(data);
       toast({ title: 'Port added', description: data.name, variant: 'success' });
-      portForm.reset({ name: '', unlocode: '', portType: 'SEA', supportsContainer: true, supportsReefer: true });
+      portForm.reset({ countryId: 0, cityId: 0, name: '', unlocode: '', portType: 'SEA', supportsContainer: true, supportsReefer: true });
       queryClient.invalidateQueries({ queryKey: ['ports'] });
     } catch (e: any) {
       toast({ title: 'Could not add port', description: apiError(e), variant: 'destructive' });
+    }
+  };
+
+  const addRoute = async (data: z.infer<typeof routeSchema>) => {
+    try {
+      await routesService.createRoute(data);
+      toast({ title: 'Shipping route added', variant: 'success' });
+      routeForm.reset({ originPortId: 0, destinationPortId: 0, transitTimeDays: 14, transitTimeSource: '', operational: true });
+      queryClient.invalidateQueries({ queryKey: ['routes'] });
+    } catch (e: any) {
+      toast({ title: 'Could not add route', description: apiError(e), variant: 'destructive' });
     }
   };
 
@@ -95,7 +132,7 @@ export default function AdminPorts() {
         {routesQ.isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-[118px] rounded-3xl" />)}</div>
         ) : routes.length === 0 ? (
-          <Card><EmptyState icon={Ship} title="No routes configured" description="Routes are seeded with reference data (e.g. JNPA → Jebel Ali) and will appear here." className="py-8" /></Card>
+          <Card><EmptyState icon={Ship} title="No routes configured" description="Add your first route below (e.g. JNPA → Jebel Ali), then attach current freight quotes." className="py-8" /></Card>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {routes.map((r: any) => (
@@ -184,7 +221,56 @@ export default function AdminPorts() {
       </div>
 
       {/* Forms */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Add shipping route</CardTitle></CardHeader>
+          <CardContent>
+            <form onSubmit={routeForm.handleSubmit(addRoute)} className="space-y-4" noValidate>
+              <FormField label="Origin port" error={routeForm.formState.errors.originPortId?.message}>
+                <Controller
+                  control={routeForm.control}
+                  name="originPortId"
+                  render={({ field }) => (
+                    <Select value={field.value ? String(field.value) : undefined} onValueChange={(value) => field.onChange(Number(value))}>
+                      <SelectTrigger><SelectValue placeholder="Select origin" /></SelectTrigger>
+                      <SelectContent>
+                        {ports.map((port: any) => <SelectItem key={port.id} value={String(port.id)}>{port.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FormField>
+              <FormField label="Destination port" error={routeForm.formState.errors.destinationPortId?.message}>
+                <Controller
+                  control={routeForm.control}
+                  name="destinationPortId"
+                  render={({ field }) => (
+                    <Select value={field.value ? String(field.value) : undefined} onValueChange={(value) => field.onChange(Number(value))}>
+                      <SelectTrigger><SelectValue placeholder="Select destination" /></SelectTrigger>
+                      <SelectContent>
+                        {ports.map((port: any) => <SelectItem key={port.id} value={String(port.id)}>{port.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Transit days" error={routeForm.formState.errors.transitTimeDays?.message}>
+                  <Input type="number" min={1} step={1} {...routeForm.register('transitTimeDays')} />
+                </FormField>
+                <FormField label="Transit source">
+                  <Input placeholder="Carrier schedule" {...routeForm.register('transitTimeSource')} />
+                </FormField>
+              </div>
+              <ToggleChip label="Operational" checked={routeForm.watch('operational')} onToggle={(value) => routeForm.setValue('operational', value)} />
+              <Button type="submit" className="w-full" disabled={routeForm.formState.isSubmitting || ports.length < 2}>
+                {routeForm.formState.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RouteIcon className="h-4 w-4" />} Add route
+              </Button>
+              {ports.length < 2 && <p className="text-xs text-muted-foreground">Add at least two ports before creating a route.</p>}
+            </form>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader><CardTitle className="text-base">Add port</CardTitle></CardHeader>
           <CardContent>
@@ -195,6 +281,48 @@ export default function AdminPorts() {
                 </FormField>
                 <FormField label="UN/LOCODE" error={portForm.formState.errors.unlocode?.message}>
                   <Input placeholder="INNSA" className="font-mono uppercase" {...portForm.register('unlocode')} />
+                </FormField>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Country" error={portForm.formState.errors.countryId?.message}>
+                  <Controller
+                    control={portForm.control}
+                    name="countryId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ? String(field.value) : undefined}
+                        onValueChange={(value) => {
+                          field.onChange(Number(value));
+                          portForm.setValue('cityId', 0);
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder={countriesQ.isLoading ? 'Loading…' : 'Select country'} /></SelectTrigger>
+                        <SelectContent>
+                          {countries.map((country: any) => (
+                            <SelectItem key={country.id} value={String(country.id)}>{country.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </FormField>
+                <FormField label="City" error={portForm.formState.errors.cityId?.message}>
+                  <Controller
+                    control={portForm.control}
+                    name="cityId"
+                    render={({ field }) => (
+                      <Select value={field.value ? String(field.value) : undefined} onValueChange={(value) => field.onChange(Number(value))}>
+                        <SelectTrigger disabled={!selectedCountryId}>
+                          <SelectValue placeholder={citiesQ.isLoading ? 'Loading…' : 'Select city'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cities.map((city: any) => (
+                            <SelectItem key={city.id} value={String(city.id)}>{city.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </FormField>
               </div>
               <FormField label="Port type">

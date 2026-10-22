@@ -38,18 +38,33 @@ public class MarketRateService {
 
     public List<RateDto.MarketRateResponse> getPublishedRates() {
         return marketRateRepository.findAll().stream()
-            .filter(r -> RateStatus.PUBLISHED.equals(r.getStatus()))
+            .filter(r -> RateStatus.PUBLISHED.equals(r.getStatus()) && isDubai(r))
             .map(this::toResponse)
             .collect(Collectors.toList());
+    }
+
+    public List<RateDto.MarketRateResponse> getAllRates() {
+        return marketRateRepository.findAll().stream().map(this::toResponse).toList();
+    }
+
+    public List<RateDto.MarketRateResponse> getRateHistory() {
+        return historyRepository.findTop1000ByStatusOrderByCreatedAtDesc(RateStatus.PUBLISHED).stream()
+            .filter(h -> h.getMarketRate() != null && isDubai(h.getMarketRate()))
+            .map(this::toHistoryResponse)
+            .toList();
     }
 
     public RateDto.MarketRateResponse getRate(Long id) {
         MarketRate rate = marketRateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Market rate not found: " + id));
+        if (!RateStatus.PUBLISHED.equals(rate.getStatus()) || !isDubai(rate)) {
+            throw new ResourceNotFoundException("Published Dubai market rate not found: " + id);
+        }
         return toResponse(rate);
     }
 
     public RateDto.MarketRateResponse createRate(RateDto.CreateMarketRateRequest req, String updatedBy) {
+        requireDubai(req.city());
         ProductVariety variety = varietyRepository.findById(req.productVarietyId())
             .orElseThrow(() -> new ResourceNotFoundException("Product variety not found: " + req.productVarietyId()));
 
@@ -76,6 +91,7 @@ public class MarketRateService {
     }
 
     public RateDto.MarketRateResponse updateRate(Long id, RateDto.UpdateMarketRateRequest req, String updatedBy) {
+        requireDubai(req.city());
         MarketRate rate = marketRateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Market rate not found: " + id));
 
@@ -105,16 +121,25 @@ public class MarketRateService {
         rate.setLastUpdated(Instant.now());
         rate.setUpdatedBy(updatedBy);
 
-        return toResponse(marketRateRepository.save(rate));
+        MarketRate saved = marketRateRepository.save(rate);
+        if (RateStatus.PUBLISHED.equals(saved.getStatus())) {
+            snapshotPublished(saved, updatedBy, "Published rate updated");
+        }
+        return toResponse(saved);
     }
 
     public RateDto.MarketRateResponse publishRate(Long id, RateDto.PublishRateRequest req, String updatedBy) {
         MarketRate rate = marketRateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Market rate not found: " + id));
+        RateStatus previousStatus = rate.getStatus();
         rate.setStatus(req.status() != null ? RateStatus.valueOf(req.status()) : RateStatus.PUBLISHED);
         rate.setLastUpdated(Instant.now());
         rate.setUpdatedBy(updatedBy);
-        return toResponse(marketRateRepository.save(rate));
+        MarketRate saved = marketRateRepository.save(rate);
+        if (RateStatus.PUBLISHED.equals(saved.getStatus()) && previousStatus != RateStatus.PUBLISHED) {
+            snapshotPublished(saved, updatedBy, "Rate published");
+        }
+        return toResponse(saved);
     }
 
     public void markStale(Long id, String updatedBy) {
@@ -124,6 +149,42 @@ public class MarketRateService {
         rate.setLastUpdated(Instant.now());
         rate.setUpdatedBy(updatedBy);
         marketRateRepository.save(rate);
+    }
+
+    private void snapshotPublished(MarketRate rate, String changedBy, String reason) {
+        MarketRateHistory history = new MarketRateHistory();
+        history.setMarketRate(rate);
+        history.setPriceAmount(rate.getPriceAmount());
+        history.setCurrency(rate.getCurrency());
+        history.setPricingUnit(rate.getPricingUnit());
+        history.setEffectiveDateTime(rate.getEffectiveDateTime());
+        history.setStatus(RateStatus.PUBLISHED);
+        history.setChangedBy(changedBy);
+        history.setChangeReason(reason);
+        historyRepository.save(history);
+    }
+
+    private RateDto.MarketRateResponse toHistoryResponse(MarketRateHistory h) {
+        MarketRate r = h.getMarketRate();
+        ProductVariety v = r.getProductVariety();
+        return new RateDto.MarketRateResponse(
+            h.getId(), v != null ? v.getId() : null,
+            v != null ? v.getProduct().getName() : null,
+            v != null ? v.getVariety() : null, v != null ? v.getGrade() : null,
+            r.getMarketName(), r.getCountry(), r.getCity(), h.getPriceAmount(), h.getCurrency(),
+            h.getPricingUnit(), r.getPackagingDetails(), r.getOriginCountry(), h.getEffectiveDateTime(),
+            h.getCreatedAt(), r.getDataSource(), r.getSourceReference(), r.getAutomaticallyFetched(),
+            h.getStatus() != null ? h.getStatus().name() : null, h.getChangedBy());
+    }
+
+    private boolean isDubai(MarketRate rate) {
+        return rate.getCity() != null && "Dubai".equalsIgnoreCase(rate.getCity().trim());
+    }
+
+    private void requireDubai(String city) {
+        if (city != null && !city.isBlank() && !"Dubai".equalsIgnoreCase(city.trim())) {
+            throw new BadRequestException("Subscriber market rates must be for Dubai.");
+        }
     }
 
     private RateDto.MarketRateResponse toResponse(MarketRate r) {

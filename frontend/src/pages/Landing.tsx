@@ -702,7 +702,7 @@ function CtaBand() {
               <Link to="/pricing">View pricing</Link>
             </Button>
           </div>
-          <p className="mt-5 text-xs font-semibold text-brand-200/70">No card needed to register · Plans from ₹499/month · Cancel anytime</p>
+          <p className="mt-5 text-xs font-semibold text-brand-200/70">No card needed to register · Plans from ₹499/month · No automatic renewal</p>
         </div>
       </Reveal>
     </section>

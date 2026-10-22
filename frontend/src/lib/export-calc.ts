@@ -167,8 +167,8 @@ function resolveLine(
   const { fx, boxes, purchaseInr, freightInr, revenueAed } = ctx;
   const safeFx = fx > 0 ? fx : DEFAULT_FX;
 
-  let amountInr = 0;
-  let amountAed = 0;
+  let amountInr: number;
+  let amountAed: number;
 
   if (line.mode === 'percent') {
     const pct = n(line.percent) / 100;

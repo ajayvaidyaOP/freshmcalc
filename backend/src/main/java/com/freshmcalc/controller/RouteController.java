@@ -23,6 +23,13 @@ public class RouteController {
         return ResponseEntity.ok(routeService.listRoutes());
     }
 
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<RouteDto.ShippingRouteResponse> createRoute(
+            @Valid @RequestBody RouteDto.CreateShippingRouteRequest req) {
+        return ResponseEntity.ok(routeService.createRoute(req));
+    }
+
     @PostMapping("/freight-quotes")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<RouteDto.FreightQuoteResponse> createFreightQuote(@Valid @RequestBody RouteDto.CreateFreightQuoteRequest req) {

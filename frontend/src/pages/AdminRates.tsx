@@ -58,7 +58,7 @@ const DEFAULTS: Values = {
 export default function AdminRates() {
   const queryClient = useQueryClient();
   const varietiesQ = useQuery({ queryKey: ['varieties'], queryFn: productsService.listVarieties });
-  const ratesQ = useQuery({ queryKey: ['rates'], queryFn: ratesService.listPublished });
+  const ratesQ = useQuery({ queryKey: ['admin-rates'], queryFn: ratesService.listAll });
   const varieties = varietiesQ.data || [];
   const rates = ratesQ.data || [];
 
@@ -70,12 +70,24 @@ export default function AdminRates() {
     formState: { errors, isSubmitting },
   } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['rates'] });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin-rates'] });
+    queryClient.invalidateQueries({ queryKey: ['rates'] });
+  };
 
   const staleMutation = useMutation({
     mutationFn: (id: number) => ratesService.markStale(id),
     onSuccess: () => {
-      toast({ title: 'Rate marked stale', description: 'Customers will see it flagged as outdated.', variant: 'success' });
+      toast({ title: 'Rate marked stale', description: 'Customers will no longer see it as a current rate.', variant: 'success' });
+      invalidate();
+    },
+    onError: (e) => toast({ title: 'Action failed', description: apiError(e), variant: 'destructive' }),
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: (id: number) => ratesService.publishRate(id, { status: 'PUBLISHED' }),
+    onSuccess: () => {
+      toast({ title: 'Dubai rate published', description: 'Customers can now see this AED price.', variant: 'success' });
       invalidate();
     },
     onError: (e) => toast({ title: 'Action failed', description: apiError(e), variant: 'destructive' }),
@@ -83,10 +95,13 @@ export default function AdminRates() {
 
   const onSubmit = async (data: Values) => {
     try {
-      await ratesService.createRate({
+      const created = await ratesService.createRate({
         ...data,
         effectiveDateTime: data.effectiveDateTime ? new Date(data.effectiveDateTime).toISOString() : new Date().toISOString(),
       });
+      // The API creates a draft first. Publish it explicitly so it appears in
+      // the subscriber/admin published-rate feeds immediately, as this form promises.
+      await ratesService.publishRate(created.id, { status: 'PUBLISHED' });
       toast({ title: 'Dubai rate published', description: 'Customers can now see this AED price.', variant: 'success' });
       reset(DEFAULTS);
       invalidate();
@@ -207,11 +222,11 @@ export default function AdminRates() {
           </CardContent>
         </Card>
 
-        {/* Published list */}
+        {/* All rates, including drafts and stale entries */}
         <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-5 w-5 text-brand-600 dark:text-brand-400" /> Published rates
+              <TrendingUp className="h-5 w-5 text-brand-600 dark:text-brand-400" /> Rate ledger
               <Badge variant="soft">{rates.length}</Badge>
             </CardTitle>
           </CardHeader>
@@ -221,7 +236,7 @@ export default function AdminRates() {
                 {[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
               </div>
             ) : rates.length === 0 ? (
-              <EmptyState icon={TrendingUp} title="No rates published yet" description="Publish your first Dubai AED rate using the form — subscribers will see it immediately." />
+              <EmptyState icon={TrendingUp} title="No rates yet" description="Publish your first Dubai AED rate using the form — subscribers will see it immediately." />
             ) : (
               <Table>
                 <TableHeader>
@@ -246,14 +261,25 @@ export default function AdminRates() {
                       <TableCell><Badge variant={r.status === 'PUBLISHED' ? 'success' : 'warn'}>{r.status || 'Published'}</Badge></TableCell>
                       <TableCell><FreshnessTag value={r.lastUpdated} /></TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={staleMutation.isPending}
-                          onClick={() => staleMutation.mutate(r.id)}
-                        >
-                          <Clock3 className="h-3.5 w-3.5" /> Mark stale
-                        </Button>
+                        {r.status === 'PUBLISHED' ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={staleMutation.isPending || publishMutation.isPending}
+                            onClick={() => staleMutation.mutate(r.id)}
+                          >
+                            <Clock3 className="h-3.5 w-3.5" /> Mark stale
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={staleMutation.isPending || publishMutation.isPending}
+                            onClick={() => publishMutation.mutate(r.id)}
+                          >
+                            <Megaphone className="h-3.5 w-3.5" /> Publish
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

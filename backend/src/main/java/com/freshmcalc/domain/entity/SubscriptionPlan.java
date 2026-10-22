@@ -42,7 +42,7 @@ public class SubscriptionPlan extends BaseEntity {
     @Column(name = "saved_calculations_access")
     private Boolean savedCalculationsAccess = true;
 
-    @Column(name = "is_active")
+    @Column(name = "active")
     private Boolean active = true;
 
     @Column(name = "sort_order")

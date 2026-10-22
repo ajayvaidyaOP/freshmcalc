@@ -1,8 +1,11 @@
 package com.freshmcalc.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -13,8 +16,8 @@ public class CalculationDto {
         String expenseCategory,
         String expenseName,
         @NotNull @DecimalMin("0") BigDecimal amount,
-        String currency,
-        String costGroup
+        @NotBlank @Pattern(regexp = "INR|AED", flags = Pattern.Flag.CASE_INSENSITIVE) String currency,
+        @NotBlank @Pattern(regexp = "PURCHASE|ORIGIN|FREIGHT|DESTINATION|COMMISSION_TAX", flags = Pattern.Flag.CASE_INSENSITIVE) String costGroup
     ) {}
 
     public record CalculationItemResponse(
@@ -28,27 +31,27 @@ public class CalculationDto {
     ) {}
 
     public record CalculationRequest(
-        String product,
+        @NotBlank String product,
         String variety,
         String grade,
         String packingCentre,
-        String originCity,
-        String originPort,
-        String destinationCountry,
-        String destinationCity,
-        String destinationPort,
-        String containerType,
-        Integer numberOfBoxes,
-        BigDecimal netWeightKg,
-        BigDecimal grossWeightKg,
-        BigDecimal productCostPerUnit,
-        String productCostUnit,
-        BigDecimal expectedDubaiSellingPricePerUnit,
-        String expectedDubaiSellingPriceUnit,
-        BigDecimal conversionRateInrToAed,
+        @NotBlank String originCity,
+        @NotBlank String originPort,
+        @NotBlank String destinationCountry,
+        @NotBlank String destinationCity,
+        @NotBlank String destinationPort,
+        @NotBlank String containerType,
+        @NotNull @Min(1) Integer numberOfBoxes,
+        @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal netWeightKg,
+        @DecimalMin("0") BigDecimal grossWeightKg,
+        @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal productCostPerUnit,
+        @NotBlank @Pattern(regexp = "per box|per kg", flags = Pattern.Flag.CASE_INSENSITIVE) String productCostUnit,
+        @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal expectedDubaiSellingPricePerUnit,
+        @NotBlank @Pattern(regexp = "per box|per kg", flags = Pattern.Flag.CASE_INSENSITIVE) String expectedDubaiSellingPriceUnit,
+        @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal conversionRateInrToAed,
         String conversionSource,
         String assumptions,
-        List<CalculationItemRequest> items
+        @Valid List<CalculationItemRequest> items
     ) {}
 
     public record CalculationResponse(

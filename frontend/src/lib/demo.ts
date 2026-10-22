@@ -241,9 +241,42 @@ export function demoAdapter(config: any) {
   if (url.includes('/auth/')) {
     return ok(config, { token: 'demo-token', email: body.email || 'demo@freshmcalc.com', role: 'CUSTOMER', status: 'ACTIVE' });
   }
-  if (url.includes('/rates') && method === 'get') return ok(config, DEMO_RATES);
-  if (url.includes('/rates') && method === 'post' && url.includes('/stale')) return ok(config, { ok: true });
-  if (url.includes('/rates') && method === 'post') {
+  if (url.endsWith('/admin/users') && method === 'get') {
+    return ok(config, [
+      {
+        id: 1, email: 'demo@freshmcalc.com', firstName: 'Demo', lastName: 'Trader', company: 'Fresh Produce Exports',
+        role: 'CUSTOMER', status: 'ACTIVE', createdAt: minsAgo(60 * 24 * 45), activePlanName: 'Quarterly',
+        currentPeriodEnd: new Date(Date.now() + 45 * 86_400_000).toISOString(),
+      },
+      {
+        id: 2, email: 'admin@freshmcalc.com', firstName: 'Admin', lastName: '', company: 'FreshmCalc',
+        role: 'ADMIN', status: 'ACTIVE', createdAt: minsAgo(60 * 24 * 90), activePlanName: null, currentPeriodEnd: null,
+      },
+    ]);
+  }
+  if (url.endsWith('/rates/history') && method === 'get') {
+    return ok(config, DEMO_RATES.filter((rate) => rate.status === 'PUBLISHED'));
+  }
+  if (url.endsWith('/rates/admin') && method === 'get') return ok(config, DEMO_RATES);
+  if (url.endsWith('/rates') && method === 'get') {
+    return ok(config, DEMO_RATES.filter((rate) => rate.status === 'PUBLISHED'));
+  }
+  if (url.includes('/rates') && method === 'post' && url.includes('/stale')) {
+    const id = Number(url.match(/\/rates\/(\d+)\/stale/)?.[1]);
+    const rate = DEMO_RATES.find((item) => item.id === id);
+    if (rate) rate.status = 'STALE';
+    return ok(config, { ok: true });
+  }
+  if (url.includes('/rates') && method === 'post' && url.includes('/publish')) {
+    const id = Number(url.match(/\/rates\/(\d+)\/publish/)?.[1]);
+    const rate = DEMO_RATES.find((item) => item.id === id);
+    if (rate) {
+      rate.status = 'PUBLISHED';
+      rate.lastUpdated = new Date().toISOString();
+    }
+    return ok(config, rate || null);
+  }
+  if (url.endsWith('/rates') && method === 'post') {
     const variety = DEMO_VARIETIES.find((v) => v.id === Number(body.productVarietyId));
     DEMO_RATES.unshift({
       id: Date.now(),
@@ -257,7 +290,7 @@ export function demoAdapter(config: any) {
       originCountry: body.originCountry || 'India',
       effectiveDateTime: new Date().toISOString(), lastUpdated: new Date().toISOString(),
       dataSource: 'ADMIN', sourceReference: body.sourceReference || 'demo',
-      automaticallyFetched: false, status: 'PUBLISHED',
+      automaticallyFetched: false, status: 'DRAFT',
     });
     return ok(config, DEMO_RATES[0], 201);
   }
@@ -274,6 +307,18 @@ export function demoAdapter(config: any) {
     DEMO_PRODUCTS.push(p);
     return ok(config, p, 201);
   }
+  if (url.includes('/ports/countries') && method === 'get') {
+    return ok(config, [
+      { id: 1, name: 'India', code: 'IND', currencyCode: 'INR' },
+      { id: 2, name: 'United Arab Emirates', code: 'ARE', currencyCode: 'AED' },
+    ]);
+  }
+  if (url.includes('/ports/cities') && method === 'get') {
+    const countryId = Number(config.params?.countryId);
+    return ok(config, countryId === 2
+      ? [{ id: 10, countryId, name: 'Dubai', state: 'Dubai' }]
+      : [{ id: 1, countryId, name: 'Mumbai', state: 'Maharashtra' }]);
+  }
   if (url.includes('/ports') && method === 'get') return ok(config, DEMO_PORTS);
   if (url.includes('/ports') && method === 'post') {
     const p = { id: Date.now(), countryName: '', cityName: '', active: true, ...body };
@@ -285,6 +330,23 @@ export function demoAdapter(config: any) {
     const q = { id: Date.now(), ...body };
     DEMO_QUOTES.push(q);
     return ok(config, q, 201);
+  }
+  if (url.endsWith('/routes') && method === 'post') {
+    const origin = DEMO_PORTS.find((p) => p.id === Number(body.originPortId));
+    const destination = DEMO_PORTS.find((p) => p.id === Number(body.destinationPortId));
+    const route = {
+      id: Date.now(),
+      originPortId: body.originPortId,
+      originPortName: origin?.name || 'Origin',
+      destinationPortId: body.destinationPortId,
+      destinationPortName: destination?.name || 'Destination',
+      transitTimeDays: body.transitTimeDays,
+      transitTimeSource: body.transitTimeSource,
+      transshipmentRequired: false,
+      operational: body.operational !== false,
+    };
+    DEMO_ROUTES.push(route);
+    return ok(config, route, 201);
   }
   if (url.includes('/routes')) return ok(config, DEMO_ROUTES);
   if (url.includes('/subscription-plans/subscription')) return ok(config, demoUser().activeSubscription);

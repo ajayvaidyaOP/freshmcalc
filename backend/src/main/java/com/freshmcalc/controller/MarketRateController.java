@@ -32,6 +32,19 @@ public class MarketRateController {
         return ResponseEntity.ok(marketRateService.getPublishedRates());
     }
 
+    @GetMapping("/history")
+    public ResponseEntity<List<RateDto.MarketRateResponse>> listRateHistory(
+            @AuthenticationPrincipal CustomerUserDetails principal) {
+        accessControlService.require(requireUser(principal), AccessControlService.Feature.DUBAI_RATES);
+        return ResponseEntity.ok(marketRateService.getRateHistory());
+    }
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<RateDto.MarketRateResponse>> listAllRates() {
+        return ResponseEntity.ok(marketRateService.getAllRates());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<RateDto.MarketRateResponse> getRate(
             @AuthenticationPrincipal CustomerUserDetails principal,
@@ -43,27 +56,27 @@ public class MarketRateController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<RateDto.MarketRateResponse> createRate(
-            @RequestHeader(name = "X-User-Email", required = false) String updatedBy,
+            @AuthenticationPrincipal CustomerUserDetails principal,
             @Valid @RequestBody RateDto.CreateMarketRateRequest req) {
-        return ResponseEntity.ok(marketRateService.createRate(req, updatedBy));
+        return ResponseEntity.ok(marketRateService.createRate(req, requireUser(principal).getEmail()));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<RateDto.MarketRateResponse> updateRate(
             @PathVariable Long id,
-            @RequestHeader(name = "X-User-Email", required = false) String updatedBy,
+            @AuthenticationPrincipal CustomerUserDetails principal,
             @Valid @RequestBody RateDto.UpdateMarketRateRequest req) {
-        return ResponseEntity.ok(marketRateService.updateRate(id, req, updatedBy));
+        return ResponseEntity.ok(marketRateService.updateRate(id, req, requireUser(principal).getEmail()));
     }
 
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<RateDto.MarketRateResponse> publishRate(
             @PathVariable Long id,
-            @RequestHeader(name = "X-User-Email", required = false) String updatedBy,
+            @AuthenticationPrincipal CustomerUserDetails principal,
             @Valid @RequestBody RateDto.PublishRateRequest req) {
-        return ResponseEntity.ok(marketRateService.publishRate(id, req, updatedBy));
+        return ResponseEntity.ok(marketRateService.publishRate(id, req, requireUser(principal).getEmail()));
     }
 
     private com.freshmcalc.domain.entity.User requireUser(CustomerUserDetails principal) {
@@ -76,8 +89,8 @@ public class MarketRateController {
     @PostMapping("/{id}/stale")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> markStale(@PathVariable Long id,
-                                          @RequestHeader(name = "X-User-Email", required = false) String updatedBy) {
-        marketRateService.markStale(id, updatedBy);
+                                          @AuthenticationPrincipal CustomerUserDetails principal) {
+        marketRateService.markStale(id, requireUser(principal).getEmail());
         return ResponseEntity.ok().build();
     }
 }

@@ -5,8 +5,10 @@ FreshmCalc ships as **one React codebase** in three wrappers:
 | Wrapper | What it is | Status |
 |---|---|---|
 | **Installable web app (PWA)** | Manifest + service worker + install prompt. Android/desktop get a native install prompt; iPhone uses Safari → Share → Add to Home Screen. | ✅ in this repo |
-| **Android app (Play Store)** | Capacitor shell (`frontend/android/`) around the same bundle, signed as an `.aab` | 🟡 project ready — build + submit |
-| **iOS app (App Store)** | Capacitor shell (`frontend/ios/`) built in Xcode | 🟡 project ready — build + submit |
+| **Android app (Play Store)** | Capacitor shell (`frontend/android/`) around the same bundle, signed as an `.aab` | 🟡 source configured — signed build + device tests still required |
+| **iOS app (App Store)** | Capacitor shell (`frontend/ios/`) built in Xcode | 🟡 source configured — archive + device tests still required |
+
+See [`production-readiness.md`](production-readiness.md) for the evidence-based release gates and the current API/Play policy checklist.
 
 The PWA is not a placeholder: it installs with an icon, opens full-screen,
 works offline for the shell and keeps the calculator draft on the device.
@@ -54,9 +56,7 @@ images, with the forest-green theme applied to the native status bar.
 
 ## 2. Android → Google Play (first release)
 
-**Prerequisites:** Android Studio (latest), JDK 21, a Google Play Console
-account (one-time US$25), and the app already deployed at
-`https://freshmcalc.com` (the shell loads it).
+**Prerequisites:** Android Studio Meerkat 2024.3.1 Patch 1 or newer (with its compatible bundled JDK), Android SDK 36, a Google Play Console account (one-time US$25), and the HTTPS API already deployed and smoke-tested. The shell bundles the React build locally; it calls the hosted API rather than loading the website as a remote wrapper.
 
 ```bash
 cd frontend
@@ -65,13 +65,13 @@ npm run app:android         # build:app + cap sync android + open Android Studio
 # manual equivalent: npm run build:app && npx cap sync android && npx cap open android
 ```
 
-The `frontend/android/` project is already generated and committed.
+The `frontend/android/` project is already generated and committed. It uses AGP 8.9.1, Gradle wrapper 8.11.1 and compile/target SDK 36.
 
 In Android Studio:
 
 1. **Build → Generate Signed Bundle / APK → Android App Bundle.**
 2. Create an **upload keystore** (`.jks`) once, store it in a password manager
-   plus a secure backup. Losing it means you cannot ship updates.
+   plus a secure backup. Losing it can block updates until a key-reset/recovery process is completed.
    Never commit it — add `*.jks` / `*.keystore` to `.gitignore`.
 3. Build a **release** `.aab` (Play requires AAB, not APK).
 4. Play Console → **Create app** → fill store listing:
@@ -82,17 +82,14 @@ In Android Studio:
    - At least 2 phone screenshots (1080×1920 or similar, portrait)
    - Privacy policy URL (required — see §6)
 5. **App content** forms: content rating questionnaire, target audience,
-   ads declaration (no ads), data safety (collects account email, name,
-   company; data encrypted in transit; deletion available on request).
+   ads declaration (no ads), and an accurate Data safety form covering account/profile data, saved cost sheets, purchase/order history, diagnostics, providers, encryption and deletion.
 6. **Testing → Internal testing** first, add your own email, install from the
    opt-in link and run the checklist in §7.
-7. Promote to **Closed → Production**. First review typically takes a few days.
+7. Run a **closed test**, then apply for/promote to production as the Console allows. Qualifying personal developer accounts created after 13 November 2023 currently need at least **12 opted-in testers for 14 continuous days** before production access. Review timelines vary.
 
 Play policy notes:
 
-- **Account deletion** is mandatory for apps that let users create accounts.
-  Provide a deletion path inside the app or a clear web link before submission
-  (currently a backlog item — see §6).
+- **Account deletion** is mandatory for apps that let users create accounts. Play requires both an in-app deletion path and a functional external web resource. Test Settings → Delete account and the public `/delete-account` page before submission (see §6).
 - If you later sell subscriptions *inside* the Android app, Google Play Billing
   is required for digital goods. Keeping the checkout on the website (as now)
   avoids the 15% store fee but must not link out from inside the app.
@@ -183,9 +180,8 @@ Remove that env var (and re-sync) before building a release.
 Both native shells hide the plan catalogue, the checkout and every
 "subscribe"/"buy" call to action (see `Subscription.tsx`, `PlanLock.tsx`). What
 remains is factual: the current plan, its expiry, and a support email for plan
-questions. That is the shape reviewers accept for a companion app to an
-existing SaaS account. Prices are not shown in-app because a price is a purchase
-signal.
+questions. That reduces store-policy risk for a companion app to an
+existing SaaS account, but approval is not guaranteed. Recheck the current policy and the actual native screens before submission; do not introduce external checkout links or purchase CTAs.
 
 Because subscriptions are server-side, a plan bought on the web unlocks the
 Android app, the iOS app and the website at the same time — the app calls
@@ -204,8 +200,8 @@ client's "purchase succeeded" callback alone.
 
 - [x] Privacy policy at `/privacy` — data collected, processors (Razorpay,
       SMTP, hosting), retention, DPDP rights, contact.
-- [x] Terms at `/terms` — plans, renewals, 7-day refund rule, liability, Pune
-      jurisdiction.
+- [x] Terms at `/terms` — fixed-term plans/manual renewal, 7-day refund rule, liability, Pune
+      jurisdiction (still requires owner/legal review against actual operations).
 - [x] Signup consent linking both documents.
 - [x] **Account deletion**: `DELETE /api/v1/auth/me` anonymises the user,
       cancels the plan and deletes saved sheets; Settings → Delete account has a
@@ -215,9 +211,9 @@ client's "purchase succeeded" callback alone.
       declared contact/user-content/purchase data, UserDefaults + file-timestamp
       API reasons.
 - [x] Android manifest: `allowBackup="false"`, `usesCleartextTraffic="false"`,
-      `INTERNET` only, targetSdk 35.
-- [x] Password reset over email, no user enumeration.
-- [x] No in-app purchase CTA in either native shell.
+      `INTERNET` only, compile/target SDK 36.
+- [x] Password-reset flow wired with no user enumeration; actual email delivery requires production SMTP verification.
+- [x] Native Subscription screen hides the plan catalogue and checkout; audit every native marketing/pricing route again before submission.
 - [x] Offline shell, installable PWA, app icons and splashes.
 
 ### You must do in the store consoles
