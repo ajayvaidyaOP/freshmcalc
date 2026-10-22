@@ -1,12 +1,19 @@
 package com.freshmcalc.controller;
 
+import com.freshmcalc.config.security.CustomerUserDetails;
 import com.freshmcalc.domain.service.SubscriptionService;
 import com.freshmcalc.dto.SubscriptionDto;
-import jakarta.validation.Valid;
+import com.freshmcalc.exception.BadRequestException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+/**
+ * Plan catalogue and the signed-in user's active subscription.
+ * New subscriptions are activated only through verified payment
+ * (see PaymentController), never by selecting a plan.
+ */
 @RestController
 @RequestMapping("/api/v1/subscription-plans")
 public class SubscriptionController {
@@ -22,16 +29,12 @@ public class SubscriptionController {
         return ResponseEntity.ok(subscriptionService.listPlans());
     }
 
-    @PostMapping("/subscribe")
-    public ResponseEntity<SubscriptionDto.SubscriptionResponse> subscribe(
-            @RequestHeader(name = "X-User-Id", required = false) Long userId,
-            @Valid @RequestBody SubscriptionDto.CreateSubscriptionRequest req) {
-        return ResponseEntity.ok(subscriptionService.subscribe(userId, req));
-    }
-
     @GetMapping("/subscription")
     public ResponseEntity<SubscriptionDto.SubscriptionResponse> getSubscription(
-            @RequestHeader(name = "X-User-Id", required = false) Long userId) {
-        return ResponseEntity.ok(subscriptionService.getActiveSubscription(userId));
+            @AuthenticationPrincipal CustomerUserDetails principal) {
+        if (principal == null) {
+            throw new BadRequestException("Authentication required.");
+        }
+        return ResponseEntity.ok(subscriptionService.getActiveSubscription(principal.getUser().getId()));
     }
 }

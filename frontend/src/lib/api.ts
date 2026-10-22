@@ -60,6 +60,26 @@ export function clearAuth() {
   localStorage.removeItem('freshmcalc_user');
 }
 
+export const USER_EVENT = 'freshmcalc:user';
+
+/**
+ * Pull the full profile (name, company, plan entitlements, active
+ * subscription) from /auth/me and refresh the cached user. Emits USER_EVENT so
+ * the app shell unlocks features immediately after a payment.
+ */
+export async function refreshUser(): Promise<any | null> {
+  if (localStorage.getItem('freshmcalc_demo') === '1') return null;
+  if (!localStorage.getItem('freshmcalc_token')) return null;
+  try {
+    const { data } = await api.get('/auth/me');
+    localStorage.setItem('freshmcalc_user', JSON.stringify(data));
+    window.dispatchEvent(new CustomEvent(USER_EVENT, { detail: data }));
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 /** True when the backend can't be reached at all (offline / proxy 5xx), vs a real API error. */
 export function isServerUnreachable(err: any): boolean {
   if (!err?.response) return true; // network error or timeout — no response received
@@ -70,6 +90,12 @@ export function isServerUnreachable(err: any): boolean {
 export function apiError(err: any, fallback = 'Something went wrong. Please try again.'): string {
   if (err?.response?.data?.error) return err.response.data.error;
   if (err?.response?.data?.message) return err.response.data.message;
+  if (err?.response?.data?.fieldErrors) {
+    const first = Object.values(err.response.data.fieldErrors)[0];
+    if (typeof first === 'string') return first;
+  }
+  // Plain JS errors (e.g. "payment window could not load") — use their message.
+  if (!err?.isAxiosError && err instanceof Error && err.message) return err.message;
   if (isServerUnreachable(err)) return 'Cannot reach the FreshmCalc server. Please make sure the backend is running.';
   return fallback;
 }

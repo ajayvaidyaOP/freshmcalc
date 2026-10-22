@@ -31,6 +31,10 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
 
+    /** Comma-separated browser origins; `*` allows any (dev default). */
+    @Value("${cors.allowed-origins:*}")
+    private String allowedOrigins;
+
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, UserDetailsService userDetailsService) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.userDetailsService = userDetailsService;
@@ -43,18 +47,29 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Profile is private even though it lives under /auth (GET/PATCH/DELETE)
+                requestMatchers("/api/v1/auth/me").authenticated()
                 // Public
                 requestMatchers("/api/v1/auth/**").permitAll()
                 requestMatchers("/api/v1/public/**").permitAll()
                 // OpenAPI docs
                 requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                // Rates: published rates readable by all; management by ADMIN
-                requestMatchers(HttpMethod.GET, "/api/v1/rates/**").permitAll()
+                // Rates are a paid feature: any signed-in user may call the
+                // endpoint, and MarketRateController then checks the plan
+                // (dubaiRatesAccess). Management stays ADMIN-only.
+                requestMatchers(HttpMethod.GET, "/api/v1/rates/**").authenticated()
                 // Products & ports: read public
                 requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                 requestMatchers(HttpMethod.GET, "/api/v1/ports/**").permitAll()
                 requestMatchers(HttpMethod.GET, "/api/v1/routes/**").permitAll()
+                // Plan catalogue is public (pricing page); purchases and
+                // subscription status still require authentication.
+                requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans").permitAll()
+                // Payment webhooks come from Razorpay's servers, not a browser
+                // session. They carry an HMAC signature that WebhookController
+                // verifies against RAZORPAY_WEBHOOK_SECRET before processing.
+                requestMatchers(HttpMethod.POST, "/api/v1/webhooks/**").permitAll()
                 // Everything else requires authentication
                 anyRequest().authenticated()
             )
@@ -66,7 +81,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+            .map(String::trim)
+            .filter(origin -> !origin.isEmpty())
+            .toList();
+        // The Play/App Store shells load the bundle on a local origin, so the
+        // two Capacitor origins are always allowed in addition to the config.
+        List<String> withAppOrigins = new java.util.ArrayList<>(origins);
+        withAppOrigins.add("https://localhost");
+        withAppOrigins.add("capacitor://localhost");
+        configuration.setAllowedOriginPatterns(withAppOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

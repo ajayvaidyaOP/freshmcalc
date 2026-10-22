@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FreshmCalc</string>
+    <string name="title_activity_main">FreshmCalc</string>
+    <string name="package_name">com.freshmcalc.app</string>
+    <string name="custom_url_scheme">com.freshmcalc.app</string>
+</resources>

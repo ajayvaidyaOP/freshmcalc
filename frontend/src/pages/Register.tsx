@@ -160,7 +160,15 @@ export default function Register() {
         </Button>
 
         <p className="text-center text-xs leading-relaxed text-muted-foreground">
-          By creating an account you agree to our terms. Subscription plans from ₹499/month unlock live Dubai rates.
+          By creating an account you agree to our{' '}
+          <Link to="/terms" className="font-semibold underline underline-offset-4 hover:text-foreground">
+            terms of service
+          </Link>{' '}
+          and{' '}
+          <Link to="/privacy" className="font-semibold underline underline-offset-4 hover:text-foreground">
+            privacy policy
+          </Link>
+          . Subscription plans from ₹499/month unlock live Dubai rates.
         </p>
       </form>
     </AuthLayout>

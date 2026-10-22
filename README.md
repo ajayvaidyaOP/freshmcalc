@@ -7,6 +7,10 @@ Traders see publisher-verified Dubai wholesale prices, run a full landed-cost ca
 (product, packing, transport, CHA, freight, insurance, duties, commission — INR → AED),
 and export professional PDF quotations for buyers.
 
+The same app installs on a phone (PWA today, Capacitor wrappers for the Play Store and
+App Store — see [`docs/mobile-apps.md`](docs/mobile-apps.md)), and runs as a Docker stack
+for a subscription business.
+
 > **Business rule (do not change):** every selling price shown in the app is a **Dubai, UAE
 > market rate in AED**. India is only the sourcing/origin market. Indian domestic prices are
 > never presented as Dubai rates.
@@ -21,10 +25,12 @@ and export professional PDF quotations for buyers.
 4. [Environment variables reference](#environment-variables-reference)
 5. [Admin account — how to log in as admin](#admin-account--how-to-log-in-as-admin)
 6. [Demo mode (no backend needed)](#demo-mode-no-backend-needed)
-7. [Useful development commands](#useful-development-commands)
-8. [Part 2 — Deploy with Docker (step by step)](#part-2--deploy-with-docker-step-by-step)
-9. [Part 3 — Production checklist](#part-3--production-checklist)
-10. [Troubleshooting](#troubleshooting)
+7. [The export calculator — how the maths works](#the-export-calculator--how-the-maths-works)
+8. [Phone app — install now, stores next](#phone-app--install-now-stores-next)
+9. [Useful development commands](#useful-development-commands)
+10. [Part 2 — Deploy with Docker (and why Docker)](#part-2--deploy-with-docker-and-why-docker)
+11. [Part 3 — Production checklist](#part-3--production-checklist)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -33,10 +39,12 @@ and export professional PDF quotations for buyers.
 | Layer | Technology |
 |---|---|
 | Frontend | React 18 + Vite 5 + TypeScript, Tailwind CSS 3, shadcn/ui (Radix), React Router 6, TanStack Query, React Hook Form + Zod, Recharts, jsPDF |
+| Mobile | Installable PWA (manifest + service worker) and Capacitor 7 wrappers for Android/iOS |
 | Backend | Java 21, Spring Boot 3.3.5 (Web, Security/JWT, Data JPA, Validation, Actuator), Gradle 8.11 (wrapper included) |
 | Database | PostgreSQL 16 + Flyway migrations (`backend/src/main/resources/db/migration`) |
-| Payments | Razorpay (`razorpay-java`), test mode by default |
+| Payments | Razorpay orders + server-side signature verification (`razorpay-java`), test mode by default |
 | API docs | springdoc OpenAPI — Swagger UI at `/swagger-ui.html` |
+| Tests | Vitest for the costing engine (`frontend/src/lib/export-calc.test.ts`) |
 | Deployment | Docker + Docker Compose + Nginx (`infrastructure/`) |
 
 **Frontend experience:** green design system (deep-forest palette, Sora + Manrope fonts, light/dark
@@ -48,9 +56,16 @@ modes), fully responsive — phone (app-style bottom navigation), tablet (icon r
 ```
 freshmcalc/
 ├── frontend/            React app (Vite)                 → http://localhost:5173
+│   ├── src/lib/export-calc.ts        the costing engine (+ tests)
+│   ├── src/lib/expense-presets.ts    editable CHA/freight/commission defaults
+│   ├── public/manifest.webmanifest   installable app metadata
+│   ├── public/sw.js                  offline app shell
+│   ├── capacitor.config.ts           Play Store / App Store wrapper
+│   ├── android/                      generated Android Studio project
+│   └── ios/                          generated Xcode project
 ├── backend/             Spring Boot API (Gradle)         → http://localhost:8080/api/v1
 ├── infrastructure/      docker-compose.yml, nginx, backup scripts (deployment)
-├── docs/                setup.md · razorpay.md · deployment.md
+├── docs/                setup.md · razorpay.md · deployment.md · costing-formula.md · mobile-apps.md
 └── .vscode/             Run/debug config, tasks, recommended extensions (committed)
 ```
 
@@ -233,8 +248,12 @@ If all 5 work, the full stack is healthy. 🎉
 | `ADMIN_PASSWORD` | recommended | — | First admin password. Remove after first production login |
 | `ADMIN_FIRST_NAME` | no | `Admin` | Display name for the bootstrap admin |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | for payments | — | Razorpay API keys (test keys are fine locally). Without them the app still runs; checkout stays disabled |
-| `RAZORPAY_WEBHOOK_SECRET` | for webhooks | — | Verifies Razorpay webhook signatures |
+| `RAZORPAY_WEBHOOK_SECRET` | for webhooks | — | Verifies Razorpay webhook signatures (required for reconcile/refunds) |
 | `RAZORPAY_TEST_MODE` | no | `true` | Set `false` only with live keys in production |
+| `APP_PUBLIC_URL` | for emails | `http://localhost:5173` | Base URL in password-reset links (no trailing slash) |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` | for reset emails | — / `587` | SMTP. Empty host = the app runs but reset emails can't be delivered |
+| `MAIL_FROM` | no | `no-reply@freshmcalc.com` | From address |
+| `APP_MAIL_EXPOSE_RESET_LINK` | dev only | `false` | Print reset links in the log instead of emailing |
 
 ### Frontend (`frontend/.env`)
 
@@ -285,6 +304,80 @@ running, the login page detects it and offers the demo automatically.
 
 ---
 
+## The export calculator — how the maths works
+
+The calculator is now a three-step sheet instead of a wall of fields:
+
+1. **Your shipment** — product, purchase cost in India, boxes, weight per box.
+   Quick-start chips load example numbers you can overwrite.
+2. **Your Dubai selling price** — AED per box or per kg; the app offers the
+   latest published Dubai rate for that product with one tap.
+3. **Your export costs** — every head is visible and editable: packing, inland
+   transport, port/THC, **CHA & documents**, ocean freight, marine insurance,
+   Dubai clearing, mandi commission, bank charges and optional UAE duty.
+   Switch any head on/off, change per-box vs per-shipment, or add your own.
+
+Live results appear instantly (and in a sticky bar on phones):
+
+```
+total landed cost = purchase + origin + freight + destination + commission & tax
+profit            = (Dubai price × boxes) − total landed cost
+margin %          = profit ÷ Dubai sale value
+ROI %             = profit ÷ landed cost
+break-even / box  = landed cost ÷ boxes
+```
+
+Costs can be entered in **INR or AED**, as a **fixed amount or a percentage**
+(of purchase, freight or sale value). Everything is converted at your FX rate,
+rounded half-up like the Java backend, and the full breakdown goes into the
+saved sheet and the PDF quotation. Worked example + every formula:
+[`docs/costing-formula.md`](docs/costing-formula.md).
+
+> The old screen only sent the purchase cost to the server, so “landed cost”
+> was really just the goods. That gap is fixed: the purchase line is now added
+> by the server automatically, and each expense head is stored with its group.
+
+---
+
+## Accounts, security and store compliance
+
+| Flow | Where |
+|---|---|
+| Sign up / sign in | `/register`, `/login` — email normalised to lowercase |
+| Forgot password | `/forgot-password` → emailed link (30 min, single use) → `/reset-password` |
+| Profile (name, phone, company, city) | Settings → **Save profile** writes to `PATCH /api/v1/auth/me` |
+| Plan status | `/subscription`; entitlements come from `GET /api/v1/auth/me` |
+| Delete account | Settings → **Delete account** (type `DELETE`) → `DELETE /api/v1/auth/me` |
+| Privacy / terms | `/privacy`, `/terms` — linked in the footer and at signup |
+| Public deletion page (Play requirement) | `/delete-account` |
+
+Deleting an account anonymises the user (`deleted-<id>@freshmcalc.invalid`), wipes
+the profile, cancels the subscription and deletes saved cost sheets. Payment rows
+stay, without personal data, for tax/accounting. Paid features are enforced on
+the **server** (`AccessControlService`), not just hidden in the UI; admins bypass.
+Users can always read or delete their own saved sheets even after a plan lapses.
+
+---
+
+## Phone app — install now, stores next
+
+Open the site on a phone:
+
+- **Android / Chrome** → “Install app” prompt (or ⋮ → *Install app*).
+- **iPhone / Safari** → Share → *Add to Home Screen*.
+- Inside the app, **Account → Get the app** explains both paths.
+
+What you get immediately: home-screen icon, full-screen layout, offline shell,
+faster loads and a calculator draft that survives app switching.
+
+For the actual store listings, the Capacitor wrappers are configured
+(`com.freshmcalc.app`, native splash/status bar, back-button handling). The
+build and submission steps — signing keys, store assets, review rules and the
+iOS/Android payment rules for subscriptions — are in
+[`docs/mobile-apps.md`](docs/mobile-apps.md).
+
+---
+
 ## Useful development commands
 
 | Task | Command |
@@ -295,6 +388,10 @@ running, the login page detects it and offers the demo automatically.
 | Frontend — dev server | `cd frontend && npm run dev` → http://localhost:5173 |
 | Frontend — production build | `cd frontend && npm run build` → `frontend/dist/` |
 | Frontend — preview build | `cd frontend && npm run preview` |
+| Frontend — tests | `cd frontend && npm test` (costing engine, 9 cases) |
+| Mobile — native build | `cd frontend && npm run build:app` |
+| Mobile — Android | `cd frontend && npm run app:android` (needs Android Studio) |
+| Mobile — iOS | `cd frontend && npm run app:ios` (needs macOS + Xcode) |
 | Database only | `docker compose -f infrastructure/docker-compose.yml up -d postgres` |
 | Stop database | `docker compose -f infrastructure/docker-compose.yml down` *(add `-v` to also delete data)* |
 
@@ -303,71 +400,69 @@ including subscription plans ₹499/₹1,299/₹4,999). Never edit an applied mi
 
 ---
 
-## Part 2 — Deploy with Docker (step by step)
+## Part 2 — Deploy with Docker (and why Docker)
 
-This runs the **whole stack** (PostgreSQL + backend + frontend + Nginx) with one command —
-no local JDK/Node/Postgres needed on the server, only Docker.
+### Do you actually need Docker?
 
-### Step 1 — Get the code on the server
+**Yes — for production, and only Postgres for local development.** This project
+is a long-term subscription product, and Docker is what makes that sustainable:
 
-```bash
-git clone https://github.com/ajayvaidyaOP/freshmcalc.git
-cd freshmcalc/infrastructure
-```
-
-### Step 2 — Configure production secrets
-
-```bash
-cp .env.example .env
-nano .env        # or open in VS Code / VS Code Remote-SSH
-```
-
-Set at minimum:
-
-```properties
-DB_PASSWORD=<strong-random-password>
-JWT_SECRET=<output of: openssl rand -base64 48>
-ADMIN_EMAIL=admin@freshmcalc.com
-ADMIN_PASSWORD=<strong-admin-password>
-CORS_ALLOWED_ORIGINS=https://your-domain.com
-# When Razorpay live keys are ready:
-RAZORPAY_KEY_ID=rzp_live_...
-RAZORPAY_KEY_SECRET=...
-RAZORPAY_WEBHOOK_SECRET=...
-RAZORPAY_TEST_MODE=false
-```
-
-### Step 3 — Build and start
-
-```bash
-docker compose up --build -d
-docker compose ps          # all 4 containers should be Up (postgres: healthy)
-docker compose logs -f backend   # watch for "Started FreshmcalcApplication" (Ctrl+C to exit logs)
-```
-
-(VS Code equivalent: task **`Full stack: Docker Compose up (build)`**.)
-
-### Step 4 — Verify
-
-| Check | URL / command |
+| Without Docker | With Docker |
 |---|---|
-| Website | <http://localhost> (Nginx) or <http://localhost:5173> (frontend container direct) |
-| Health | <http://localhost/health> → `{"status":"UP"}` |
-| API | <http://localhost:8080/api/v1/rates> |
-| Admin login | The `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `infrastructure/.env` |
+| Install JDK 21, Node 22 and Postgres 16 on every machine and keep them in sync | One `docker compose up` gives the same stack on your laptop and the server |
+| "Works on my machine" bugs before every release | Identical images, identical build output |
+| Manual start/stop/restart of three processes | `restart: unless-stopped`, healthchecks, ordered startup |
+| Secrets copied into the repo | `.env` injected at runtime, never in an image |
+| Upgrade Postgres = risky manual migration | Change the image tag, keep the volume |
 
-### Day-2 operations
+You do **not** need Kubernetes, a service mesh or a cloud platform yet. A single
+2 vCPU / 4 GB VPS runs this stack comfortably for the first few hundred traders
+(roughly ₹400–1,200 per month). Add a managed Postgres and a second API
+container only when traffic demands it — the API is stateless (JWT), so that
+step needs no code changes.
+
+### Steps
+
+**Fast path: [`DEPLOY.md`](DEPLOY.md) (15 minutes, copy-paste).**
+Full detail: [`docs/deployment.md`](docs/deployment.md).
+Short version:
 
 ```bash
-docker compose logs -f              # follow all logs
-docker compose restart backend      # restart one service
-docker compose down                 # stop everything (data volume is kept)
-# Update to the latest code:
-git pull && docker compose up --build -d
+# On a fresh Ubuntu VPS
+sudo apt update && sudo apt install -y git curl
+curl -fsSL https://get.docker.com | sudo sh
+
+sudo mkdir -p /opt/freshmcalc && sudo chown "$USER" /opt/freshmcalc
+git clone https://github.com/ajayvaidyaOP/freshmcalc.git /opt/freshmcalc
+cd /opt/freshmcalc/infrastructure
+
+cp .env.example .env
+openssl rand -base64 24     # DB_PASSWORD
+openssl rand -base64 48     # JWT_SECRET
+nano .env                   # secrets, domain, admin, Razorpay, SMTP
+
+docker compose up -d --build
+docker compose ps           # all services "healthy"
+curl -s http://127.0.0.1/health
 ```
 
-Database backups: run `infrastructure/scripts/backup.sh` on a cron schedule
-(compressed dumps, 7-day retention). Example: `0 2 * * * /path/to/freshmcalc/infrastructure/scripts/backup.sh`
+Then HTTPS in one command (needs DNS pointing at the server):
+
+```bash
+./scripts/init-letsencrypt.sh your-domain.com you@your-domain.com
+```
+
+After that, every release is:
+
+```bash
+cd /opt/freshmcalc/infrastructure && ./scripts/deploy.sh
+```
+
+Day-2 tools that ship with the repo: `scripts/deploy.sh` (pull → backup →
+rebuild → health-check), `scripts/backup.sh` + `restore.sh` +
+`verify-backup.sh` (restore rehearsal), `scripts/renew-certs.sh` (TLS renewal),
+`nginx/realip.conf` + `scripts/cloudflare-realip.sh` (real client IPs behind a
+CDN).
 
 ---
 
@@ -381,9 +476,19 @@ Database backups: run `infrastructure/scripts/backup.sh` on a cron schedule
 - [ ] **HTTPS**: obtain certificates (e.g. Certbot/Let's Encrypt), mount them into the `nginx`
       service and add a `443 ssl` server block in `infrastructure/nginx/nginx.conf`
       (port 443 is already published). Terminate TLS at Nginx — do not expose Spring Boot directly
-- [ ] Razorpay live keys + `RAZORPAY_TEST_MODE=false`; webhook URL set to
-      `https://your-domain.com/api/v1/webhooks/razorpay` (see `docs/razorpay.md`)
-- [ ] Backup cron scheduled + one restore rehearsal done
+- [ ] Razorpay live keys + `RAZORPAY_TEST_MODE=false`; webhook URL + secret set
+      (events: `payment.captured`, `payment.failed`, `order.paid`, `refund.created`,
+      `refund.processed`) — see `docs/razorpay.md`
+- [ ] `APP_PUBLIC_URL=https://your-domain.com` (password-reset links)
+- [ ] SMTP configured (`MAIL_*`) and one reset email received end-to-end
+- [ ] Behind Cloudflare/ALB: fill `infrastructure/nginx/realip.conf` so rate limits
+      see the real client IP (`scripts/cloudflare-realip.sh` regenerates it)
+- [ ] Backup cron scheduled **and** `verify-backup.sh` restore rehearsal passed
+      (dumps are on the host at `infrastructure/backups/`, synced off-site)
+- [ ] Uptime monitor on `/health`; every 5xx log line carries the `X-Request-Id`
+      returned to the user, so support can find the trace
+- [ ] Legal pages reviewed for DPDP/UAE requirements; store consoles point at
+      `/privacy`, `/terms`, `/delete-account`
 - [ ] Never commit real `.env` files or secret keys (they are git-ignored — keep it that way)
 
 ---
@@ -402,6 +507,11 @@ Database backups: run `infrastructure/scripts/backup.sh` on a cron schedule
 | Frontend loads but **no rates / API errors** in browser console | Check `frontend/.env` has `VITE_API_BASE=/api/v1` and restart `npm run dev` (Vite reads env only at startup). Backend must be on 8080 |
 | Live rates/calculator show **lock icons** | Those features need an active subscription (admins have full access). Subscribe via **Subscription & Billing** once Razorpay keys are configured |
 | Docker: `docker compose up` rebuilds everything every time | Expected with `--build`. For restarts without code changes use `docker compose up -d` |
+| **Deploy:** containers start but `/health` never turns healthy | `docker compose logs backend`. Usual causes: wrong `DB_PASSWORD` (Postgres volume was created with another password — reset with `docker compose down -v` **only on a fresh install**), or a failed Flyway migration |
+| **Deploy:** `502 Bad Gateway` from nginx | Backend container is restarting. `docker compose ps` + `docker compose logs --tail 100 backend` |
+| **Deploy:** site loads on the IP but the domain times out | DNS `A` record missing/wrong, or the provider firewall blocks 80/443 |
+| **Deploy:** `init-letsencrypt.sh` fails with "challenge does not match" | DNS not propagated yet, or `www.` record missing — both names are requested. Test first with `STAGING=1 ./scripts/init-letsencrypt.sh …` |
+| **Deploy:** certificate issued but browser warns | You tested against staging and kept the staging cert: run `rm -rf infrastructure/certbot/conf/live/your-domain.com` then the script again without `STAGING=1` |
 | `npm install` slow/failing on a fresh clone | Delete `frontend/node_modules`, ensure Node 20+, retry. `node_modules` is never committed |
 
 More detail: [`docs/setup.md`](docs/setup.md) · [`docs/razorpay.md`](docs/razorpay.md) · [`docs/deployment.md`](docs/deployment.md)

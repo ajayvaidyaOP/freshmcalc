@@ -164,7 +164,12 @@ export default function Login() {
       </p>
 
       <p className="mt-5 rounded-xl bg-brand-50 px-3.5 py-2.5 text-center text-xs font-medium leading-relaxed text-brand-800 dark:bg-brand-950 dark:text-brand-200">
-        Forgot your password? Write to support@freshmcalc.com and we'll help you reset it.
+        <Link
+          to="/forgot-password"
+          className="inline-flex items-center gap-1 font-bold text-brand-700 underline-offset-4 hover:underline dark:text-brand-300"
+        >
+          Forgot your password?
+        </Link>
       </p>
     </AuthLayout>
   );

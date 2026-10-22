@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Smartphone,
   TrendingUp,
   History,
   Calculator,
@@ -32,6 +33,7 @@ export const MARKET_ITEMS: NavItem[] = [
 export const ACCOUNT_ITEMS: NavItem[] = [
   { label: 'Subscription & Billing', shortLabel: 'Billing', href: '/subscription', icon: CreditCard },
   { label: 'Account Settings', shortLabel: 'Settings', href: '/settings', icon: Settings },
+  { label: 'Get the app', shortLabel: 'App', href: '/get-app', icon: Smartphone },
 ];
 
 export const ADMIN_ITEMS: NavItem[] = [

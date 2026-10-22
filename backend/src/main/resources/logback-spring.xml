@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Readable logs with a correlation id on every line:
+
+      2026-10-22 10:42:11.532  INFO 1 --- [http-nio-8080-exec-3] [a1b2c3d4] c.f.c.RequestIdFilter : ...
+
+  The bracketed value is the X-Request-Id returned to the client, so a support
+  ticket can name one line in `docker compose logs backend`.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <property name="CONSOLE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %5p ${PID:- } --- [%15.15t] [%X{requestId:---------}] %-40.40logger{39} : %m%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- Our own packages at INFO; Hibernate/SQL stays quiet unless asked. -->
+    <logger name="com.freshmcalc" level="INFO"/>
+</configuration>

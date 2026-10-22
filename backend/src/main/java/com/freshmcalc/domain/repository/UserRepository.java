@@ -7,6 +7,11 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
+
     Optional<User> findByEmail(String email);
+
     boolean existsByEmail(String email);
+
+    /** Password reset links store a SHA-256 hash of the token, never the token itself. */
+    Optional<User> findByPasswordResetToken(String passwordResetToken);
 }

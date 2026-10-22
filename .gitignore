@@ -49,3 +49,27 @@ backups/
 # Secrets
 **/secrets.yml
 **/credentials.yml
+
+# Mobile signing material — never commit
+*.jks
+*.keystore
+frontend/android/local.properties
+frontend/android/app/google-services.json
+frontend/ios/App/Podfile.lock
+frontend/ios/App/App/public
+
+# Postgres dumps (never commit customer data).
+# Re-include the folder itself so the .gitkeep survives the backups/ rule above.
+!infrastructure/backups/
+infrastructure/backups/*
+!infrastructure/backups/.gitkeep
+
+# Sentry (if configured) and local tooling
+.sentryclirc
+
+# TLS material and the generated edge config (see infrastructure/scripts)
+infrastructure/certbot/conf/*
+!infrastructure/certbot/conf/.gitkeep
+infrastructure/certbot/www/*
+!infrastructure/certbot/www/.gitkeep
+infrastructure/nginx/https.conf

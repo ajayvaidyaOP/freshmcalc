@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FreshmCalc brand greens (matches the web app) -->
+    <color name="colorPrimary">#206644</color>
+    <color name="colorPrimaryDark">#0A2519</color>
+    <color name="colorAccent">#BEF264</color>
+    <color name="splashBackground">#0A2519</color>
+</resources>

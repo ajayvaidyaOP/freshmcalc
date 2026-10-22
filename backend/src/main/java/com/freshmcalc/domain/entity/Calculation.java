@@ -1,5 +1,6 @@
 package com.freshmcalc.domain.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -95,7 +96,10 @@ public class Calculation extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     private CalculationStatus status = CalculationStatus.DRAFT;
 
-    @OneToMany(mappedBy = "calculation", fetch = FetchType.LAZY)
+    // Ordered collection owned by the calculation; cascading removal lets an
+    // account deletion clean up its cost sheets without orphan rows.
+    @OneToMany(mappedBy = "calculation", fetch = FetchType.LAZY,
+        cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<CalculationItem> items = new ArrayList<>();
 

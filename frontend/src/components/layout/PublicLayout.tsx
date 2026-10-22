@@ -173,6 +173,9 @@ export function PublicLayout() {
               <li><Link className="transition-colors hover:text-lime-300" to="/register">Create account</Link></li>
               <li><Link className="transition-colors hover:text-lime-300" to="/login">Log in</Link></li>
               <li><Link className="transition-colors hover:text-lime-300" to="/#faq">FAQ</Link></li>
+              <li><Link className="transition-colors hover:text-lime-300" to="/terms">Terms of service</Link></li>
+              <li><Link className="transition-colors hover:text-lime-300" to="/privacy">Privacy policy</Link></li>
+              <li><Link className="transition-colors hover:text-lime-300" to="/delete-account">Delete account</Link></li>
             </ul>
           </nav>
 
