@@ -66,3 +66,10 @@ infrastructure/backups/*
 
 # Sentry (if configured) and local tooling
 .sentryclirc
+
+# TLS material and the generated edge config (see infrastructure/scripts)
+infrastructure/certbot/conf/*
+!infrastructure/certbot/conf/.gitkeep
+infrastructure/certbot/www/*
+!infrastructure/certbot/www/.gitkeep
+infrastructure/nginx/https.conf

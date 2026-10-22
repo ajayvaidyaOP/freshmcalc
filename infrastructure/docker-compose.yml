@@ -117,12 +117,12 @@ services:
     image: nginx:1.27-alpine
     container_name: freshmcalc-nginx
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Real client IPs behind Cloudflare / a load balancer (empty by default).
-      - ./nginx/realip.conf:/etc/nginx/conf.d/realip.conf:ro
-      # Uncomment after adding certificates (see docs/deployment.md):
-      # - ./certbot/conf:/etc/letsencrypt:ro
-      # - ./certbot/www:/var/www/certbot:ro
+      # Whole edge config folder: nginx.conf, realip.conf and (after you issue
+      # certificates) https.conf. *.conf files are auto-loaded; *.example files
+      # are ignored by nginx.
+      - ./nginx:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
     ports:
       - "80:80"
       - "443:443"
@@ -141,6 +141,17 @@ services:
     restart: unless-stopped
     networks:
       - freshmcalc
+
+  # TLS certificates (Let's Encrypt). Only runs on demand:
+  #   docker compose --profile tls run --rm certbot certificates
+  certbot:
+    image: certbot/certbot:v2.11.0
+    # No container_name: `docker compose run` must be free to create throwaway
+    # containers for individual certbot commands.
+    profiles: ["tls"]
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
 
 volumes:
   freshmcalc_postgres_data:

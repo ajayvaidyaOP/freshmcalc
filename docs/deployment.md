@@ -1,5 +1,9 @@
 # Production deployment
 
+> Looking for the fast path? [`../DEPLOY.md`](../DEPLOY.md) is the 15-minute
+> walkthrough. This page is the reference: reasoning, operations, monitoring and
+> the go-live checklist.
+
 ## Overview
 
 FreshmCalc runs as four Docker services behind Nginx:
@@ -23,36 +27,97 @@ All public traffic goes through Nginx.
 
 A 2 vCPU / 4 GB VPS is enough for the first few hundred traders.
 
-## First deploy
+## Before you start (5 minutes of prep)
+
+| You need | Why | Rough cost |
+|---|---|---|
+| A Linux VPS, 2 vCPU / 4 GB RAM / 40 GB SSD, Ubuntu 24.04 | runs the four containers | ₹400–1,200 / month |
+| A domain you can edit DNS for | HTTPS, store listings, reset links | ₹800–1,200 / year |
+| Ports 22, 80, 443 open in the provider firewall | SSH + HTTP + HTTPS | — |
+| Docker Engine + Compose plugin | the whole stack | free |
+
+Any provider works (Hostinger, DigitalOcean, Hetzner, Lightsail, Contabo…). Pick a
+region close to your users: Mumbai or Dubai for this product.
+
+## First deploy — copy/paste
 
 ```bash
-git clone https://github.com/ajayvaidyaOP/freshmcalc.git
-cd freshmcalc/infrastructure
+# ---------- 1. On the server, as a sudo-capable user ----------
+sudo apt update && sudo apt install -y git curl
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker "$USER" && newgrp docker   # or log out/in
+
+# ---------- 2. Get the code ----------
+sudo mkdir -p /opt/freshmcalc && sudo chown "$USER" /opt/freshmcalc
+git clone https://github.com/ajayvaidyaOP/freshmcalc.git /opt/freshmcalc
+cd /opt/freshmcalc
+
+# ---------- 3. Make sure you deploy the branch you want ----------
+git checkout main          # after the PR is merged
+git pull
+
+# ---------- 4. Configure secrets ----------
+cd infrastructure
 cp .env.example .env
-nano .env            # strong DB_PASSWORD, JWT_SECRET, ADMIN_*, Razorpay keys
-docker compose up -d --build
-docker compose ps    # every service should reach "healthy"
+openssl rand -base64 24     # copy into DB_PASSWORD
+openssl rand -base64 48     # copy into JWT_SECRET
+nano .env
 ```
 
-Generate secrets:
+`.env` must have these changed before the first start:
+
+```properties
+DB_PASSWORD=<the 24-byte secret>
+JWT_SECRET=<the 48-byte secret>
+CORS_ALLOWED_ORIGINS=https://your-domain.com
+APP_PUBLIC_URL=https://your-domain.com
+ADMIN_EMAIL=you@your-domain.com
+ADMIN_PASSWORD=<temporary strong password>
+RAZORPAY_KEY_ID=rzp_test_...        # test keys first
+RAZORPAY_KEY_SECRET=...
+RAZORPAY_WEBHOOK_SECRET=<random string, same as in Razorpay dashboard>
+MAIL_HOST=smtp.zoho.in              # optional now, required before launch
+MAIL_PORT=587
+MAIL_USERNAME=no-reply@your-domain.com
+MAIL_PASSWORD=<app password>
+MAIL_FROM=no-reply@your-domain.com
+```
 
 ```bash
-openssl rand -base64 24   # DB_PASSWORD
-openssl rand -base64 48   # JWT_SECRET
+# ---------- 5. Start ----------
+docker compose up -d --build
+docker compose ps                     # wait until every service says "healthy"
+curl -s http://127.0.0.1/health       # {"status":"UP",...}
 ```
 
-Set `CORS_ALLOWED_ORIGINS=https://your-domain.com`.
+Open `http://<server-ip>/` — the site loads over plain HTTP. Log in with the
+admin account, change the password, then **remove `ADMIN_PASSWORD` from `.env`**
+and `docker compose up -d backend`.
 
-## HTTPS (required for the installable app and stores)
+> First build takes 5–10 minutes (Gradle + npm). Later builds reuse layers and
+> take ~1 minute.
 
-Service workers, install prompts and the native shells need HTTPS. Terminate
-TLS at Nginx:
+## HTTPS — one command
 
-1. Install Certbot on the host and issue a certificate for your domain.
-2. Uncomment the certificate volume mounts in `docker-compose.yml`.
-3. Uncomment the `443` server block in `infrastructure/nginx/nginx.conf` and
-   the HTTP→HTTPS redirect.
-4. `docker compose restart nginx`.
+DNS first: create `A` records for `your-domain.com` **and** `www.your-domain.com`
+pointing at the server IP. Wait until `ping your-domain.com` shows that IP.
+
+```bash
+cd /opt/freshmcalc/infrastructure
+./scripts/init-letsencrypt.sh your-domain.com you@your-domain.com
+```
+
+The script writes `nginx/https.conf` from the example, creates a temporary
+self-signed certificate so nginx can start, asks Let's Encrypt for the real one
+over HTTP-01, and reloads nginx.
+
+Then point the app at HTTPS:
+
+```bash
+sed -i 's|^APP_PUBLIC_URL=.*|APP_PUBLIC_URL=https://your-domain.com|' .env
+sed -i 's|^CORS_ALLOWED_ORIGINS=.*|CORS_ALLOWED_ORIGINS=https://your-domain.com|' .env
+docker compose up -d backend
+```
 
 Verify:
 
@@ -62,8 +127,43 @@ curl -sI https://your-domain.com/manifest.webmanifest | grep -i content-type
 # application/manifest+json
 ```
 
-The manifest and `sw.js` are served with `no-cache` so app updates arrive
+Renewal (certificates last 90 days; this only acts when needed):
+
+```bash
+crontab -e
+15 3 * * * cd /opt/freshmcalc/infrastructure && ./scripts/renew-certs.sh >> /var/log/freshmcalc-tls.log 2>&1
+```
+
+The manifest and `sw.js` are served `no-cache` so app updates arrive
 immediately; hashed assets are cached for a year.
+
+## Everyday deploy (after the first time)
+
+```bash
+cd /opt/freshmcalc/infrastructure
+./scripts/deploy.sh
+```
+
+That script pulls the latest commit, takes a database backup, rebuilds, and
+waits for `/health` (printing backend logs if it never comes up). Manual
+equivalent:
+
+```bash
+cd /opt/freshmcalc && git pull
+cd infrastructure && docker compose up -d --build
+docker compose logs -f backend | grep "Started FreshmcalcApplication"
+```
+
+If a deploy goes wrong, the previous images are still on disk:
+
+```bash
+cd /opt/freshmcalc && git checkout <previous-commit>
+cd infrastructure && docker compose up -d --build
+```
+
+Flyway migrations run automatically on startup. **Never edit an applied
+migration** — add `V3__*.sql` instead. A migration that fails blocks the
+backend from starting, so check `docker compose logs backend` first.
 
 ## Environment-based configuration
 
@@ -112,14 +212,9 @@ backup, which is what the Sunday rehearsal proves.
 
 ## Updating
 
-```bash
-git pull
-docker compose up -d --build
-docker compose logs -f backend | grep "Started FreshmcalcApplication"
-```
-
-If a Flyway migration is included, it runs automatically on startup. Never edit
-an applied migration — add `V3__*.sql`.
+`./scripts/deploy.sh` (see above) is the normal path. It backs up first and
+health-checks after. Roll back by checking out the previous commit and
+rebuilding — see "Everyday deploy".
 
 ## Health & monitoring
 

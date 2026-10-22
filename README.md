@@ -404,107 +404,65 @@ including subscription plans ₹499/₹1,299/₹4,999). Never edit an applied mi
 
 ### Do you actually need Docker?
 
-| Situation | Docker needed? |
+**Yes — for production, and only Postgres for local development.** This project
+is a long-term subscription product, and Docker is what makes that sustainable:
+
+| Without Docker | With Docker |
 |---|---|
-| Writing code locally in VS Code | **Recommended**, but only for PostgreSQL. Run the backend with Gradle and the frontend with Vite (Part 1). |
-| Showing the UI to someone | No — demo mode works with no server at all. |
-| Putting the app on Play Store / App Store | No, but you need the **backend deployed** somewhere, because the app talks to the API. Docker is the simplest way to host it. |
-| Running the paid product for real users | **Yes, strongly recommended.** |
+| Install JDK 21, Node 22 and Postgres 16 on every machine and keep them in sync | One `docker compose up` gives the same stack on your laptop and the server |
+| "Works on my machine" bugs before every release | Identical images, identical build output |
+| Manual start/stop/restart of three processes | `restart: unless-stopped`, healthchecks, ordered startup |
+| Secrets copied into the repo | `.env` injected at runtime, never in an image |
+| Upgrade Postgres = risky manual migration | Change the image tag, keep the volume |
 
-For a subscription business the Docker stack buys you:
-
-- **Reproducible deploys** — one image builds the same on your laptop and the
-  server; no “works on my machine” JDK/Node/Postgres drift.
-- **One command to ship** — `docker compose up -d --build` updates the API,
-  web app and proxy together; rollback is rebuilding the previous tag.
-- **Isolation and safety** — Postgres is bound to `127.0.0.1` only, the API is
-  reachable only through Nginx, and secrets live in `.env` on the server.
-- **Real health checks** — Compose waits for Postgres, then the API, then the
-  web app before routing traffic.
-- **A clean path to scale** — move Postgres to a managed service, then run two
-  backend containers behind Nginx without changing application code.
-- **Backups that are just a cron job** — `infrastructure/scripts/backup.sh`
-  dumps the database volume without touching the app.
-- **Consistent native + web** — the Play/App Store shells call the same
-  containerised API, so there is one source of truth for calculations.
-
-It costs roughly **₹400–1,200/month** on a small VPS (2 vCPU / 4 GB is plenty
-for the first few hundred traders). If you would rather not run Docker, a
-managed platform works too — but keep HTTPS, backups and the loopback-only
-database rule.
+You do **not** need Kubernetes, a service mesh or a cloud platform yet. A single
+2 vCPU / 4 GB VPS runs this stack comfortably for the first few hundred traders
+(roughly ₹400–1,200 per month). Add a managed Postgres and a second API
+container only when traffic demands it — the API is stateless (JWT), so that
+step needs no code changes.
 
 ### Steps
 
-This runs the **whole stack** (PostgreSQL + backend + frontend + Nginx) with one command —
-no local JDK/Node/Postgres needed on the server, only Docker.
-
-### Step 1 — Get the code on the server
-
-```bash
-git clone https://github.com/ajayvaidyaOP/freshmcalc.git
-cd freshmcalc/infrastructure
-```
-
-### Step 2 — Configure production secrets
+**Fast path: [`DEPLOY.md`](DEPLOY.md) (15 minutes, copy-paste).**
+Full detail: [`docs/deployment.md`](docs/deployment.md).
+Short version:
 
 ```bash
+# On a fresh Ubuntu VPS
+sudo apt update && sudo apt install -y git curl
+curl -fsSL https://get.docker.com | sudo sh
+
+sudo mkdir -p /opt/freshmcalc && sudo chown "$USER" /opt/freshmcalc
+git clone https://github.com/ajayvaidyaOP/freshmcalc.git /opt/freshmcalc
+cd /opt/freshmcalc/infrastructure
+
 cp .env.example .env
-nano .env        # or open in VS Code / VS Code Remote-SSH
+openssl rand -base64 24     # DB_PASSWORD
+openssl rand -base64 48     # JWT_SECRET
+nano .env                   # secrets, domain, admin, Razorpay, SMTP
+
+docker compose up -d --build
+docker compose ps           # all services "healthy"
+curl -s http://127.0.0.1/health
 ```
 
-Set at minimum:
-
-```properties
-DB_PASSWORD=<strong-random-password>
-JWT_SECRET=<output of: openssl rand -base64 48>
-ADMIN_EMAIL=admin@freshmcalc.com
-ADMIN_PASSWORD=<strong-admin-password>
-CORS_ALLOWED_ORIGINS=https://your-domain.com
-# When Razorpay live keys are ready:
-RAZORPAY_KEY_ID=rzp_live_...
-RAZORPAY_KEY_SECRET=...
-RAZORPAY_WEBHOOK_SECRET=...
-RAZORPAY_TEST_MODE=false
-```
-
-### Step 3 — Build and start
+Then HTTPS in one command (needs DNS pointing at the server):
 
 ```bash
-docker compose up --build -d
-docker compose ps          # postgres/backend/frontend healthy, nginx up
-docker compose logs -f backend   # watch for "Started FreshmcalcApplication" (Ctrl+C to exit logs)
+./scripts/init-letsencrypt.sh your-domain.com you@your-domain.com
 ```
 
-The first build takes a few minutes (Gradle + npm). Later deploys reuse the
-dependency layers, so only changed code is rebuilt.
-
-(VS Code equivalent: task **`Full stack: Docker Compose up (build)`**.)
-
-### Step 4 — Verify
-
-| Check | URL / command |
-|---|---|
-| Website | <http://localhost> (Nginx) |
-| Health | <http://localhost/health> → `{"status":"UP"}` |
-| API (server only) | <http://127.0.0.1:8080/api/v1/rates> |
-| Admin login | The `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `infrastructure/.env` |
-
-Postgres and the raw API are published on `127.0.0.1` only — they are not
-reachable from the internet even if the firewall is misconfigured.
-
-### Day-2 operations
+After that, every release is:
 
 ```bash
-docker compose logs -f              # follow all logs
-docker compose ps                   # health status of every service
-docker compose restart backend      # restart one service
-docker compose down                 # stop everything (data volume is kept)
-# Update to the latest code:
-git pull && docker compose up --build -d
+cd /opt/freshmcalc/infrastructure && ./scripts/deploy.sh
 ```
 
-Database backups: run `infrastructure/scripts/backup.sh` on a cron schedule
-(compressed dumps, 7-day retention). Example: `0 2 * * * /path/to/freshmcalc/infrastructure/scripts/backup.sh`
+Day-2 tools that ship with the repo: `scripts/deploy.sh` (pull → backup →
+rebuild → health-check), `scripts/backup.sh` + `restore.sh` +
+`verify-backup.sh` (restore rehearsal), `scripts/renew-certs.sh` (TLS renewal),
+`nginx/realip.conf` + `scripts/cloudflare-realip.sh` (real client IPs behind a
+CDN).
 
 ---
 
@@ -549,6 +507,11 @@ Database backups: run `infrastructure/scripts/backup.sh` on a cron schedule
 | Frontend loads but **no rates / API errors** in browser console | Check `frontend/.env` has `VITE_API_BASE=/api/v1` and restart `npm run dev` (Vite reads env only at startup). Backend must be on 8080 |
 | Live rates/calculator show **lock icons** | Those features need an active subscription (admins have full access). Subscribe via **Subscription & Billing** once Razorpay keys are configured |
 | Docker: `docker compose up` rebuilds everything every time | Expected with `--build`. For restarts without code changes use `docker compose up -d` |
+| **Deploy:** containers start but `/health` never turns healthy | `docker compose logs backend`. Usual causes: wrong `DB_PASSWORD` (Postgres volume was created with another password — reset with `docker compose down -v` **only on a fresh install**), or a failed Flyway migration |
+| **Deploy:** `502 Bad Gateway` from nginx | Backend container is restarting. `docker compose ps` + `docker compose logs --tail 100 backend` |
+| **Deploy:** site loads on the IP but the domain times out | DNS `A` record missing/wrong, or the provider firewall blocks 80/443 |
+| **Deploy:** `init-letsencrypt.sh` fails with "challenge does not match" | DNS not propagated yet, or `www.` record missing — both names are requested. Test first with `STAGING=1 ./scripts/init-letsencrypt.sh …` |
+| **Deploy:** certificate issued but browser warns | You tested against staging and kept the staging cert: run `rm -rf infrastructure/certbot/conf/live/your-domain.com` then the script again without `STAGING=1` |
 | `npm install` slow/failing on a fresh clone | Delete `frontend/node_modules`, ensure Node 20+, retry. `node_modules` is never committed |
 
 More detail: [`docs/setup.md`](docs/setup.md) · [`docs/razorpay.md`](docs/razorpay.md) · [`docs/deployment.md`](docs/deployment.md)

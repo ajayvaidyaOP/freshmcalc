@@ -36,6 +36,10 @@ images, with the forest-green theme applied to the native status bar.
 
 - `npm run build` → normal web build (`/api/v1` relative).
 - `npm run build:app` → native build (absolute API URL, `--mode native`).
+  The URL comes from `frontend/.env.native` (`https://freshmcalc.com/api/v1`).
+  Deploying on another domain? Override it without editing the file (process env
+  wins over `.env` files):
+  `VITE_API_BASE=https://your-domain.com/api/v1 npm run build:app`
 - `npm run app:android` → build + `cap sync android` + open Android Studio.
 - `npm run app:ios` → build + `cap sync ios` + open Xcode.
 - In the native shell, subscription checkout is **hidden** (store rules —
