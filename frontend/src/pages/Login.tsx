@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { AuthLayout, FormField } from '@/components/layout/AuthLayout';
 import { authService } from '@/services/auth.service';
 import { apiError, isServerUnreachable, setAuth } from '@/lib/api';
-import { enableDemo } from '@/lib/demo';
+import { disableDemo, enableDemo } from '@/lib/demo';
 import { toast } from '@/hooks/use-toast';
 
 const schema = z.object({
@@ -41,10 +41,23 @@ export default function Login() {
     setError(null);
     setServerDown(false);
     try {
+      // A real sign-in must always reach the backend. If demo mode was left
+      // on by an earlier "Explore live demo" tap, its local adapter would
+      // otherwise answer this login itself with a fake trader (CUSTOMER)
+      // session — and even an ADMIN would land in the demo trader view.
+      disableDemo();
       const res = await authService.login(data.email, data.password);
       setAuth(res.token, { email: res.email, role: res.role, status: res.status });
-      toast({ title: 'Welcome back!', description: 'Dubai market overview is ready.', variant: 'success' });
-      navigate('/dashboard');
+      // Land each account on its own home: admins manage the platform,
+      // traders go to the market overview. The role comes from the backend
+      // login response (and /auth/me re-checks it) — never from the email.
+      const isAdmin = res.role === 'ADMIN';
+      toast({
+        title: 'Welcome back!',
+        description: isAdmin ? 'Admin dashboard is ready.' : 'Dubai market overview is ready.',
+        variant: 'success',
+      });
+      navigate(isAdmin ? '/admin' : '/dashboard');
     } catch (e: any) {
       if (isServerUnreachable(e)) {
         setServerDown(true);

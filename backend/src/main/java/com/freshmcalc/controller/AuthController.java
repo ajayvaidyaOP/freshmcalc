@@ -3,9 +3,9 @@ package com.freshmcalc.controller;
 import com.freshmcalc.config.security.CustomerUserDetails;
 import com.freshmcalc.domain.service.AuthService;
 import com.freshmcalc.dto.AuthDto;
-import com.freshmcalc.exception.BadRequestException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -69,7 +69,10 @@ public class AuthController {
 
     private String requireEmail(CustomerUserDetails principal) {
         if (principal == null) {
-            throw new BadRequestException("Authentication required.");
+            // Defence in depth: SecurityConfig already requires a token for
+            // /auth/me, but if that ever regresses this must be a 401
+            // (mapped in GlobalExceptionHandler), never a 400/500.
+            throw new AuthenticationCredentialsNotFoundException("Authentication required.");
         }
         return principal.getUsername();
     }
