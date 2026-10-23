@@ -1,5 +1,6 @@
 package com.freshmcalc.config.security;
 
+import com.freshmcalc.domain.entity.User;
 import com.freshmcalc.domain.repository.UserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
