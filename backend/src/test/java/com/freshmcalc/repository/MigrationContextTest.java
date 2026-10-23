@@ -4,7 +4,7 @@ import com.freshmcalc.FreshmcalcApplication;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DirtyContext;
+import org.springframework.test.annotation.DirtiesContext;
 
 /**
  * Opt-in PostgreSQL integration test: verifies the application context and all
@@ -19,7 +19,7 @@ import org.springframework.test.context.DirtyContext;
     "spring.flyway.enabled=true",
     "spring.jpa.hibernate.ddl-auto=validate"
 })
-@DirtyContext
+@DirtiesContext
 class MigrationContextTest {
 
     @Test
