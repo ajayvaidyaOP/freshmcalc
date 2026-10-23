@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import axios from 'axios';
-import { demoAdapter } from './demo';
+import { demoAdapter, disableDemo } from './demo';
 
 /**
  * Backend controllers are mounted under /api/v1 (see Spring @RequestMapping).
@@ -41,6 +41,10 @@ api.interceptors.response.use(
 );
 
 export function setAuth(token: string, user: any) {
+  // A real backend session replaces demo mode. Without this, a leftover
+  // demo flag would keep intercepting API calls (including /auth/me) and
+  // the signed-in user — e.g. an ADMIN — would stay stuck in sample data.
+  disableDemo();
   localStorage.setItem('freshmcalc_token', token);
   localStorage.setItem('freshmcalc_user', JSON.stringify(user));
 }
@@ -58,6 +62,10 @@ export function getAuth() {
 export function clearAuth() {
   localStorage.removeItem('freshmcalc_token');
   localStorage.removeItem('freshmcalc_user');
+  // Signing out (or exiting the demo banner, which calls this) must also
+  // end demo mode — otherwise the flag survives forever and silently
+  // intercepts the next real login.
+  disableDemo();
 }
 
 export const USER_EVENT = 'freshmcalc:user';

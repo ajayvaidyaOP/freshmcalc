@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { AuthLayout, FormField } from '@/components/layout/AuthLayout';
 import { authService } from '@/services/auth.service';
 import { apiError, setAuth } from '@/lib/api';
+import { disableDemo } from '@/lib/demo';
 import { toast } from '@/hooks/use-toast';
 
 const schema = z.object({
@@ -39,6 +40,9 @@ export default function Register() {
   const onSubmit = async (data: Values) => {
     setError(null);
     try {
+      // Real registration must reach the backend even if demo mode was
+      // enabled earlier in this browser/app (see Login for why).
+      disableDemo();
       const res = await authService.register(data);
       setAuth(res.token, {
         email: res.email,
@@ -52,7 +56,7 @@ export default function Register() {
         city: data.city,
       });
       toast({ title: 'Account created!', description: 'Welcome to FreshmCalc. Choose a plan to unlock live Dubai rates.', variant: 'success' });
-      navigate('/dashboard');
+      navigate(res.role === 'ADMIN' ? '/admin' : '/dashboard');
     } catch (e: any) {
       setError(apiError(e, 'Registration failed. Please try again.'));
     }

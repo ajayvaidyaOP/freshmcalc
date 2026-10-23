@@ -1,6 +1,8 @@
 package com.freshmcalc.config.security;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Instant;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -50,9 +52,21 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(errors -> errors
+                // Write the status + JSON body directly instead of sendError():
+                // sendError triggers a servlet ERROR dispatch to /error, which
+                // makes the final status depend on error-page handling (an
+                // unauthenticated /auth/me was observed returning HTTP 500).
+                // A direct write guarantees: no/invalid token -> 401 JSON.
                 .authenticationEntryPoint((request, response, exception) ->
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authentication required.")))
+                    writeErrorJson(response, HttpServletResponse.SC_UNAUTHORIZED,
+                        "Authentication required.", request.getRequestURI()))
+                .accessDeniedHandler((request, response, exception) ->
+                    writeErrorJson(response, HttpServletResponse.SC_FORBIDDEN,
+                        "Access denied.", request.getRequestURI())))
             .authorizeHttpRequests(auth -> auth
+                // Error dispatches must be able to render the real error body.
+                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                .requestMatchers("/error").permitAll()
                 // Profile is private even though it lives under /auth (GET/PATCH/DELETE)
                 .requestMatchers("/api/v1/auth/me").authenticated()
                 // Public
@@ -82,6 +96,19 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /** Same shape as GlobalExceptionHandler.ErrorResponse, written at filter level. */
+    private static void writeErrorJson(HttpServletResponse response, int status, String message, String uri)
+            throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write(
+            "{\"status\":" + status
+                + ",\"error\":\"" + message + "\""
+                + ",\"timestamp\":\"" + Instant.now() + "\""
+                + ",\"path\":\"uri=" + uri + "\"}");
     }
 
     @Bean

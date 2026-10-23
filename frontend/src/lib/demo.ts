@@ -59,6 +59,20 @@ export function setDemoRole(role: 'CUSTOMER' | 'ADMIN') {
   localStorage.setItem('freshmcalc_user', JSON.stringify(demoUser(role)));
 }
 
+/**
+ * Turn demo mode fully off. Must be called before any real sign-in attempt
+ * (and on every sign-out): while the flag is set, the API layer answers
+ * login requests locally with a fake CUSTOMER session and the real backend
+ * is never contacted, so a real ADMIN could never reach the admin area.
+ */
+export function disableDemo() {
+  try {
+    localStorage.removeItem(DEMO_FLAG);
+  } catch {
+    /* storage unavailable — nothing to clear */
+  }
+}
+
 /* ------------------------------------------------------------------ data */
 
 const minsAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
