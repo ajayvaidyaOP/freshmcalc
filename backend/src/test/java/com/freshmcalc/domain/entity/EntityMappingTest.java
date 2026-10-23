@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class EntityMappingTest {
 
     @Test
-    void baseEntityProvidesTheSharedIdentity() throws NoSuchFieldException {
+    void baseEntityProvidesTheSharedIdentity() throws NoSuchFieldException, NoSuchMethodException {
         Field id = BaseEntity.class.getDeclaredField("id");
         assertEquals(Long.class, id.getType());
         assertNotNull(id.getAnnotation(Id.class));
