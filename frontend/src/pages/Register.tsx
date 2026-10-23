@@ -55,7 +55,7 @@ export default function Register() {
         country: data.country,
         city: data.city,
       });
-      toast({ title: 'Account created!', description: 'Welcome to FreshmCalc. Choose a plan to unlock live Dubai rates.', variant: 'success' });
+      toast({ title: 'Account created!', description: 'Welcome to FreshmCalc. Choose a plan to unlock Dubai market rates.', variant: 'success' });
       navigate(res.role === 'ADMIN' ? '/admin' : '/dashboard');
     } catch (e: any) {
       setError(apiError(e, 'Registration failed. Please try again.'));
@@ -83,7 +83,7 @@ export default function Register() {
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label="First name" htmlFor="firstName" error={errors.firstName?.message}>
             <div className="relative">
               <UserRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -124,7 +124,7 @@ export default function Register() {
           </div>
         </FormField>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label="Phone (optional)" htmlFor="phone">
             <div className="relative">
               <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -139,7 +139,7 @@ export default function Register() {
           </FormField>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label="Country" htmlFor="country">
             <Input id="country" autoComplete="country-name" {...register('country')} />
           </FormField>
@@ -172,7 +172,7 @@ export default function Register() {
           <Link to="/privacy" className="font-semibold underline underline-offset-4 hover:text-foreground">
             privacy policy
           </Link>
-          . Subscription plans from ₹499/month unlock live Dubai rates.
+          . Subscription plans from ₹499 unlock Dubai market rates.
         </p>
       </form>
     </AuthLayout>

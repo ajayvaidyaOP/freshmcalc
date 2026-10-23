@@ -146,7 +146,7 @@ export function PublicLayout() {
           <div>
             <Logo to="/" tone="light" />
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-brand-200/80">
-              Live Dubai fresh-produce market rates in AED and a complete India → Dubai export costing engine for traders, wholesalers and exporters.
+              Publisher-updated Dubai fresh-produce market rates in AED and an India → Dubai export-costing tool for traders, wholesalers and exporters.
             </p>
             <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/[0.07] px-3 py-1.5 text-xs font-bold ring-1 ring-white/10">
               <span className="relative flex h-2 w-2">
@@ -161,7 +161,7 @@ export function PublicLayout() {
             <h3 className="font-display text-sm font-bold uppercase tracking-wider text-white">Product</h3>
             <ul className="mt-4 space-y-2.5 text-sm text-brand-200/85">
               <li><Link className="transition-colors hover:text-lime-300" to="/#features">Features</Link></li>
-              <li><Link className="transition-colors hover:text-lime-300" to="/#live-rates">Live Dubai rates</Link></li>
+              <li><Link className="transition-colors hover:text-lime-300" to="/#live-rates">Dubai market rates</Link></li>
               <li><Link className="transition-colors hover:text-lime-300" to="/#how-it-works">Export calculator</Link></li>
               <li><Link className="transition-colors hover:text-lime-300" to="/pricing">Pricing</Link></li>
             </ul>

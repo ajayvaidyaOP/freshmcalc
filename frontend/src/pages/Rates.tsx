@@ -101,8 +101,8 @@ export default function Rates() {
   return (
     <div className="space-y-5 sm:space-y-6">
       <PageHeader
-        eyebrow={isHistory ? 'Price history' : 'Live market'}
-        title={isHistory ? 'Dubai Price History' : 'Dubai Live Rates'}
+        eyebrow={isHistory ? 'Rate history' : 'Market rates'}
+        title={isHistory ? 'Dubai Rate History' : 'Dubai Market Rates'}
         description={
           isHistory
             ? 'Every published Dubai rate with its effective time — your paper trail for price movements in AED.'
@@ -116,7 +116,7 @@ export default function Rates() {
             <Button asChild variant="outline">
               <Link to={isHistory ? '/rates' : '/rates/history'}>
                 {isHistory ? <TrendingUp className="h-4 w-4" /> : <History className="h-4 w-4" />}
-                {isHistory ? 'Live rates' : 'Price history'}
+                {isHistory ? 'Market rates' : 'Rate history'}
               </Link>
             </Button>
           </>
@@ -184,8 +184,8 @@ export default function Rates() {
         </div>
       ) : isError && (error as any)?.response?.status === 403 ? (
         <PlanLock
-          title="Live Dubai rates need an active plan"
-          description="Your account doesn't include market-rate access right now. Subscribe or renew to see today's AED wholesale prices."
+          title="Dubai market-rate access needs an active plan"
+          description="Your account does not currently include market-rate access. Subscribe or renew to view publisher-updated Dubai wholesale prices in AED."
           benefits={['Daily Dubai wholesale prices in AED', 'Price history and trend charts', 'All grades and pack sizes']}
         />
       ) : isError ? (
@@ -287,7 +287,7 @@ export default function Rates() {
             )}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-brand-500" /> Publisher-published · Al Aweer Wholesale Market, Dubai
+            <span className="h-2 w-2 rounded-full bg-brand-500" /> Publisher-updated · Al Aweer Wholesale Market, Dubai
           </span>
         </p>
       )}

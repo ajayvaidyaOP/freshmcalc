@@ -108,6 +108,7 @@ public class CalculationService {
             item.setCurrency(itemReq.currency());
             item.setAmountAed(amountAed);
             item.setCostGroup(group);
+            item.setSourceNote(itemReq.sourceNote());
             calc.getItems().add(item);
 
             switch (group) {
@@ -300,7 +301,7 @@ public class CalculationService {
         List<CalculationDto.CalculationItemResponse> items = c.getItems().stream()
             .map(i -> new CalculationDto.CalculationItemResponse(
                 i.getId(), i.getExpenseCategory(), i.getExpenseName(), i.getAmount(), i.getCurrency(),
-                i.getAmountAed(), i.getCostGroup() != null ? i.getCostGroup().name() : null))
+                i.getAmountAed(), i.getCostGroup() != null ? i.getCostGroup().name() : null, i.getSourceNote()))
             .toList();
         return new CalculationDto.CalculationResponse(
             c.getId(), c.getReferenceNumber(), c.getProduct(), c.getVariety(), c.getGrade(),

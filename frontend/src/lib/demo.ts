@@ -151,6 +151,9 @@ const DEMO_QUOTES = [
   { id: 3, routeId: 1, containerType: '40HC', amount: 1350, currency: 'USD', source: 'Demo sample quote' },
 ];
 
+// Port-charge demo records are intentionally empty; no rates are fabricated.
+const DEMO_PORT_CHARGES: any[] = [];
+
 function seedCalculations(): any[] {
   return [
     {
@@ -320,6 +323,40 @@ export function demoAdapter(config: any) {
     const p = { id: Date.now(), status: 'ACTIVE', ...body };
     DEMO_PRODUCTS.push(p);
     return ok(config, p, 201);
+  }
+  if (url.endsWith('/ports/charges/admin') && method === 'get') return ok(config, DEMO_PORT_CHARGES);
+  if (url.endsWith('/ports/charges') && method === 'get') {
+    const params = config.params || {};
+    const originPortId = Number(params.originPortId);
+    const destinationPortId = Number(params.destinationPortId);
+    const now = Date.now();
+    const applicable = DEMO_PORT_CHARGES.filter((charge) => {
+      const portMatches = (charge.portId === originPortId && charge.direction === 'ORIGIN')
+        || (charge.portId === destinationPortId && charge.direction === 'DESTINATION');
+      const containerMatches = !charge.containerType || charge.containerType === params.containerType;
+      const modeMatches = !charge.shippingMode || charge.shippingMode === 'ANY' || charge.shippingMode === params.shippingMode;
+      const productMatches = !charge.productName || charge.productName.toLowerCase() === String(params.productName || '').toLowerCase();
+      return charge.active !== false && portMatches && containerMatches && modeMatches && productMatches;
+    }).map((charge) => {
+      const start = charge.effectiveFrom ? new Date(charge.effectiveFrom).getTime() : 0;
+      const end = charge.effectiveUntil ? new Date(charge.effectiveUntil).getTime() : Infinity;
+      return {
+        ...charge,
+        currentStatus: start > now ? 'FUTURE' : end < now ? 'EXPIRED' : charge.verificationStatus || 'UNCONFIRMED',
+      };
+    });
+    return ok(config, applicable);
+  }
+  if (url.endsWith('/ports/charges') && method === 'post') {
+    const charge = { id: Date.now(), currentStatus: body.verificationStatus || 'UNCONFIRMED', ...body };
+    DEMO_PORT_CHARGES.push(charge);
+    return ok(config, charge, 201);
+  }
+  if (url.includes('/ports/charges/') && method === 'put') {
+    const id = Number(url.split('/').pop());
+    const index = DEMO_PORT_CHARGES.findIndex((charge) => charge.id === id);
+    if (index >= 0) DEMO_PORT_CHARGES[index] = { ...DEMO_PORT_CHARGES[index], ...body, currentStatus: body.verificationStatus || 'UNCONFIRMED' };
+    return ok(config, DEMO_PORT_CHARGES[index] || null);
   }
   if (url.includes('/ports/countries') && method === 'get') {
     return ok(config, [

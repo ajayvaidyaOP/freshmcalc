@@ -12,10 +12,8 @@ import {
   IndianRupee,
   LineChart,
   PlayCircle,
-  Quote,
   ShieldCheck,
   Ship,
-  Star,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -64,16 +62,15 @@ function Hero() {
               <span className="absolute h-full w-full animate-ping rounded-full bg-brand-500 opacity-60" />
               <span className="relative h-2 w-2 rounded-full bg-brand-600" />
             </span>
-            Dubai wholesale market · Live AED rates
+            Dubai wholesale market · Publisher-updated rates in AED
           </Badge>
 
           <h1 className="mt-5 text-[36px] font-extrabold leading-[1.08] sm:text-5xl lg:text-[56px]">
             Know your <span className="text-gradient">Dubai selling price</span> before your container sails.
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            FreshmCalc gives fruit & vegetable exporters live Dubai market rates in AED and a complete
-            India → Dubai costing engine — packing, freight, CHA, duties and commission — so every
-            shipment leaves with a known profit margin.
+            FreshmCalc gives fruit and vegetable exporters publisher-updated Dubai market rates in AED and an
+            India → Dubai costing tool for estimating product, preparation, freight and other shipment costs.
           </p>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -92,7 +89,7 @@ function Hero() {
                 window.location.href = '/dashboard';
               }}
             >
-              <PlayCircle className="h-5 w-5 text-brand-600 dark:text-brand-400" /> Explore live demo
+              <PlayCircle className="h-5 w-5 text-brand-600 dark:text-brand-400" /> Explore sample demo
             </Button>
           </div>
           <p className="mt-3 text-[13px] font-semibold text-muted-foreground">
@@ -114,7 +111,7 @@ function Hero() {
           </dl>
 
           <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] font-semibold text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5"><BadgeCheck className="h-4 w-4 text-brand-600 dark:text-brand-400" /> Publisher-verified rates</span>
+            <span className="inline-flex items-center gap-1.5"><BadgeCheck className="h-4 w-4 text-brand-600 dark:text-brand-400" /> Publisher-updated rates</span>
             <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-brand-600 dark:text-brand-400" /> Secure Razorpay billing</span>
             <span className="inline-flex items-center gap-1.5"><FileText className="h-4 w-4 text-brand-600 dark:text-brand-400" /> PDF quotations</span>
           </div>
@@ -239,8 +236,8 @@ function RatesTicker() {
 const FEATURES = [
   {
     icon: LineChart,
-    title: 'Live Dubai rates (AED)',
-    desc: 'Publisher-verified Dubai wholesale prices for pomegranate, green chilli, banana and 40+ products — with variety, grade, packing unit and last-updated time on every rate.',
+    title: 'Dubai market rates (AED)',
+    desc: 'Publisher-updated Dubai wholesale prices for pomegranate, green chilli, banana and 40+ products — with variety, grade, packing unit and last-updated time on every rate.',
     span: 'sm:col-span-2',
     accent: true,
   },
@@ -262,12 +259,12 @@ const FEATURES = [
   {
     icon: History,
     title: 'Price history & trends',
-    desc: 'Track how Dubai prices moved over days and weeks to time your dispatch better.',
+    desc: 'Review recorded Dubai price history to understand past market movements.',
   },
   {
     icon: Ship,
     title: 'Ports, routes & freight',
-    desc: 'JNPA, Mundra, Chennai → Jebel Ali. Route transit times and freight quotes built into your costing.',
+    desc: 'Review configured ports, routes, transit times and freight quotes. Confirm current charges before adding them to a costing.',
     span: 'sm:col-span-2',
   },
 ];
@@ -280,7 +277,7 @@ function Features() {
           <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-400">Why FreshmCalc</p>
           <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">Everything an exporter needs, <span className="text-gradient">in one green dashboard</span></h2>
           <p className="mt-4 text-muted-foreground sm:text-lg">
-            Stop juggling WhatsApp rates and Excel sheets. One platform from Indian sourcing price to Dubai profit.
+            Stop juggling WhatsApp rates and Excel sheets. One platform to organize sourcing costs, Dubai market rates and shipment estimates.
           </p>
         </Reveal>
 
@@ -319,7 +316,7 @@ function Features() {
   );
 }
 
-/* --------------------------------------------------------- Live rates demo */
+/* ----------------------------------------------------- Market rates preview */
 
 function LiveRatesPreview() {
   return (
@@ -327,10 +324,9 @@ function LiveRatesPreview() {
       <div className="container grid items-center gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
         <Reveal>
           <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-400">Dubai market rates</p>
-          <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">Today's Dubai prices, <span className="text-gradient">not yesterday's mandi bhav</span></h2>
+          <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">Dubai market prices, <span className="text-gradient">not yesterday's mandi bhav</span></h2>
           <p className="mt-4 leading-relaxed text-muted-foreground sm:text-lg">
-            Every rate is a Dubai, UAE wholesale price in AED — published by our market team with the source and
-            timestamp shown. Indian domestic prices are never passed off as Dubai rates.
+            Each published rate is a Dubai, UAE wholesale price in AED. The available source and update time are shown with the rate. Indian domestic prices are never passed off as Dubai rates.
           </p>
           <ul className="mt-6 space-y-3 text-[15px]">
             {[
@@ -352,14 +348,14 @@ function LiveRatesPreview() {
               <Link to="/pricing">Compare plans</Link>
             </Button>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">Preview below uses sample data. Live rates are available to subscribers.</p>
+          <p className="mt-4 text-xs text-muted-foreground">The preview below uses illustrative sample data. Subscribers can view published market rates.</p>
         </Reveal>
 
         <Reveal delay={120}>
           <div className="overflow-hidden rounded-3xl border border-border/80 bg-card shadow-lift">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 px-5 py-4">
               <div>
-                <h3 className="font-display text-base font-bold">Dubai Wholesale · Today</h3>
+                <h3 className="font-display text-base font-bold">Dubai Wholesale · Sample rates</h3>
                 <p className="text-xs text-muted-foreground">Al Aweer Central Market · All prices AED</p>
               </div>
               <Badge variant="warn" className="normal-case tracking-normal">Sample data</Badge>
@@ -407,7 +403,7 @@ function LiveRatesPreview() {
 const STEPS = [
   { icon: IndianRupee, title: 'Enter India costs', desc: 'Sourcing price, packing centre, boxes and weights — in INR, the way you buy.' },
   { icon: Ship, title: 'Add route & freight', desc: 'Pick origin port and container. Freight, CHA, insurance and duties flow in.' },
-  { icon: Globe2, title: 'Compare with Dubai AED', desc: 'Live Dubai selling price vs your landed cost — converted at your FX rate.' },
+  { icon: Globe2, title: 'Compare with Dubai AED', desc: 'Published Dubai selling price vs your landed-cost estimate, converted at your entered FX rate.' },
   { icon: FileText, title: 'Quote with confidence', desc: 'Save the cost sheet, export a PDF quotation and ship with a known margin.' },
 ];
 
@@ -482,24 +478,24 @@ function CorridorBand() {
 
 /* ------------------------------------------------------------ Testimonials */
 
-const TESTIMONIALS = [
+const EXAMPLE_WORKFLOWS = [
   {
-    quote: 'Earlier we guessed Dubai prices from WhatsApp forwards. Now I check AED rates in the morning and only dispatch when the margin is clear. Two loss-making shipments avoided last season itself.',
-    name: 'ravindra Patil',
-    role: 'Pomegranate exporter · Solapur',
-    initials: 'SP',
+    title: 'Compare buyer pricing',
+    audience: 'For exporters',
+    description: 'Review publisher-updated Dubai market rates in AED, then compare a buyer price with your estimated landed cost.',
+    initials: '01',
   },
   {
-    quote: 'The cost sheet is exactly how buyers in Dubai ask for it — per box, per kg, everything in AED. I send the PDF quotation directly from FreshmCalc. Very professional.',
-    name: 'Mohammed Farooq',
-    role: 'Vegetable trading · Nashik',
-    initials: 'MF',
+    title: 'Build a shipment estimate',
+    audience: 'For produce traders',
+    description: 'Add product, packing, transport and freight inputs to see an itemized estimate per shipment, box and kilogram.',
+    initials: '02',
   },
   {
-    quote: 'On mobile it works like an app. At the packing house I update boxes and freight, and profit updates instantly. My whole team uses it during dispatch.',
-    name: 'Anita Deshmukh',
-    role: 'Fresh produce wholesaler · Pune',
-    initials: 'AD',
+    title: 'Share a costing sheet',
+    audience: 'For sales teams',
+    description: 'Save a calculation and export a PDF summary of the entered costs, assumptions and estimated selling value.',
+    initials: '03',
   },
 ];
 
@@ -508,31 +504,22 @@ function Testimonials() {
     <section className="py-16 sm:py-20 lg:py-24">
       <div className="container">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-400">Trader stories</p>
-          <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">Exporters who ship with <span className="text-gradient">numbers, not guesswork</span></h2>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-400">Example workflows</p>
+          <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">From market rates to a <span className="text-gradient">clearer cost estimate</span></h2>
+          <p className="mt-4 text-sm text-muted-foreground">Illustrative product examples—not customer testimonials or guaranteed outcomes.</p>
         </Reveal>
 
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {TESTIMONIALS.map((t, i) => (
-            <Reveal key={t.name} delay={i * 100}>
-              <figure className="flex h-full flex-col rounded-3xl border border-border/80 bg-card p-7 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
-                <Quote className="h-7 w-7 text-brand-300 dark:text-brand-700" />
-                <div className="mt-3 flex gap-0.5" aria-label="5 out of 5 stars">
-                  {Array.from({ length: 5 }).map((_, s) => (
-                    <Star key={s} className="h-4 w-4 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-                <blockquote className="mt-3 flex-1 text-[15px] leading-relaxed">“{t.quote}”</blockquote>
-                <figcaption className="mt-6 flex items-center gap-3 border-t border-border/60 pt-5">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 font-display text-sm font-extrabold text-white">
-                    {t.initials}
-                  </span>
-                  <span>
-                    <span className="block text-sm font-bold">{t.name}</span>
-                    <span className="block text-xs text-muted-foreground">{t.role}</span>
-                  </span>
-                </figcaption>
-              </figure>
+        <div className="mt-10 grid gap-5 md:grid-cols-3">
+          {EXAMPLE_WORKFLOWS.map((workflow, i) => (
+            <Reveal key={workflow.title} delay={i * 100}>
+              <article className="flex h-full flex-col rounded-3xl border border-border/80 bg-card p-7 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-100 font-display text-sm font-extrabold text-brand-700 dark:bg-brand-900 dark:text-brand-300">
+                  {workflow.initials}
+                </span>
+                <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-brand-700 dark:text-brand-300">{workflow.audience}</p>
+                <h3 className="mt-1 font-display text-lg font-bold">{workflow.title}</h3>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{workflow.description}</p>
+              </article>
             </Reveal>
           ))}
         </div>
@@ -550,7 +537,7 @@ function PricingTeaser() {
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-400">Simple pricing</p>
           <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">Less than the cost of <span className="text-gradient">one rejected box</span></h2>
-          <p className="mt-4 text-muted-foreground sm:text-lg">Every plan includes live Dubai rates, the full export calculator and PDF quotations.</p>
+          <p className="mt-4 text-muted-foreground sm:text-lg">Available features depend on the selected plan. Review each plan for its included market-rate, calculator and PDF access.</p>
         </Reveal>
 
         <div className="mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-3">
@@ -644,7 +631,7 @@ function Faq() {
           <div className="relative mt-8 hidden overflow-hidden rounded-3xl lg:block">
             <img src="/images/Dubai-market.jpg" alt="Dubai wholesale fresh produce market" className="h-64 w-full object-cover" loading="lazy" />
             <div className="absolute inset-0 bg-gradient-to-t from-brand-950/80 to-transparent" />
-            <p className="absolute bottom-4 left-5 right-5 text-sm font-bold text-white">Al Aweer Central Market, Dubai — where your produce is priced daily.</p>
+            <p className="absolute bottom-4 left-5 right-5 text-sm font-bold text-white">Al Aweer Central Market, Dubai — an example of a produce wholesale market.</p>
           </div>
         </Reveal>
 
@@ -689,10 +676,10 @@ function CtaBand() {
         <div aria-hidden className="bg-dots pointer-events-none absolute inset-0 opacity-20 [mask-image:radial-gradient(600px_300px_at_center,black,transparent)]" />
         <div className="relative mx-auto max-w-2xl">
           <h2 className="text-3xl font-extrabold leading-tight sm:text-4xl">
-            Your next container can leave with a <span className="text-lime-300">known profit.</span>
+            Plan your next container with a <span className="text-lime-300">clear cost estimate.</span>
           </h2>
           <p className="mt-4 text-brand-100/85 sm:text-lg">
-            Join traders and exporters who check Dubai AED rates and lock their costing before dispatch.
+            Review Dubai market rates in AED and prepare a shipment estimate before dispatch.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Button asChild variant="lime" size="lg" className="w-full sm:w-auto">
@@ -702,7 +689,7 @@ function CtaBand() {
               <Link to="/pricing">View pricing</Link>
             </Button>
           </div>
-          <p className="mt-5 text-xs font-semibold text-brand-200/70">No card needed to register · Plans from ₹499/month · No automatic renewal</p>
+          <p className="mt-5 text-xs font-semibold text-brand-200/70">No card required to register · Plans from ₹499 · No automatic renewal</p>
         </div>
       </Reveal>
     </section>

@@ -70,7 +70,7 @@ export default function Login() {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to see live Dubai rates (AED) and your saved export cost sheets."
+      subtitle="Sign in to view Dubai market rates in AED and your saved export cost sheets."
       footer={
         <>
           New to FreshmCalc?{' '}
@@ -85,7 +85,7 @@ export default function Login() {
           <div className="flex items-start gap-2.5">
             <WifiOff className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="text-sm">
-              <p className="font-bold text-amber-900 dark:text-amber-200">Server se connect nahi ho raha</p>
+              <p className="font-bold text-amber-900 dark:text-amber-200">The server cannot be reached</p>
               <p className="mt-0.5 leading-relaxed text-amber-800/85 dark:text-amber-200/75">
                 Your email/password may be correct — but the backend server isn't running in this preview, so login
                 can't be verified. Explore the full app with sample data instead:
@@ -93,7 +93,7 @@ export default function Login() {
             </div>
           </div>
           <Button type="button" size="lg" className="mt-3.5 w-full" onClick={openDemo}>
-            <FlaskConical className="h-5 w-5" /> Explore live demo — no login needed
+            <FlaskConical className="h-5 w-5" /> Try the sample demo — no account needed
           </Button>
         </div>
       )}
@@ -150,7 +150,7 @@ export default function Login() {
             </>
           ) : (
             <>
-              Sign in to dashboard <ArrowRight className="h-[18px] w-[18px]" />
+              Sign in <ArrowRight className="h-[18px] w-[18px]" />
             </>
           )}
         </Button>
@@ -170,7 +170,7 @@ export default function Login() {
         onClick={openDemo}
       >
         <FlaskConical className="h-5 w-5 text-brand-600 dark:text-brand-400" />
-        Explore live demo — no signup
+        Try sample demo — no account needed
       </Button>
       <p className="mt-2 text-center text-xs text-muted-foreground">
         Opens the full app with sample Dubai data. Switch to <strong>Admin view</strong> from the green demo banner inside.

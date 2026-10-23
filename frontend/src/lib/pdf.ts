@@ -13,6 +13,9 @@ export interface QuotationItem {
   /** Backend field name — INR amount of the line. */
   amount?: number;
   amountAed?: number;
+  /** Provenance for configured, illustrative, or user-entered costs when recorded. */
+  sourceNote?: string;
+  note?: string;
 }
 
 export interface QuotationData {
@@ -46,10 +49,10 @@ export interface QuotationData {
 const GROUP_ORDER = ['PURCHASE', 'ORIGIN', 'FREIGHT', 'DESTINATION', 'COMMISSION_TAX'];
 const GROUP_LABELS: Record<string, string> = {
   PURCHASE: 'Product purchase',
-  ORIGIN: 'India-side costs',
-  FREIGHT: 'Freight & insurance',
-  DESTINATION: 'Dubai-side costs',
-  COMMISSION_TAX: 'Commission & taxes',
+  ORIGIN: 'Origin charges',
+  FREIGHT: 'International freight & insurance',
+  DESTINATION: 'Destination charges',
+  COMMISSION_TAX: 'Commission, taxes & other costs',
 };
 
 const money = (value: number | undefined, currency: string) =>
@@ -153,6 +156,7 @@ export async function generateQuotationPdf(data: QuotationData): Promise<void> {
     group: item.group || item.costGroup || 'ORIGIN',
     inr: Number(item.amountInr ?? item.amount ?? 0),
     aed: Number(item.amountAed ?? 0),
+    note: item.sourceNote || item.note,
   }));
 
   if (items.length > 0) {
@@ -160,16 +164,16 @@ export async function generateQuotationPdf(data: QuotationData): Promise<void> {
       const groupItems = items.filter((item) => item.group === group);
       if (groupItems.length === 0) continue;
       for (const item of groupItems) {
-        itemRows.push([GROUP_LABELS[group] || group, item.name, money(item.inr, 'INR'), money(item.aed, 'AED')]);
+        itemRows.push([GROUP_LABELS[group] || group, item.note ? `${item.name}\n${item.note}` : item.name, money(item.inr, 'INR'), money(item.aed, 'AED')]);
       }
     }
   } else {
     itemRows.push(
       ['Product purchase', 'Product purchase cost (INR)', money(data.totalPurchaseInr, 'INR'), '—'],
-      ['India-side costs', 'Packing, transport, port, CHA & documents', money(data.totalOriginInr, 'INR'), '—'],
+      ['Origin charges', 'Packing, transport, port, customs clearance and documents', money(data.totalOriginInr, 'INR'), '—'],
       ['Freight & insurance', 'Ocean freight and marine insurance', money(data.totalFreightInr, 'INR'), '—'],
-      ['Dubai-side costs', 'Clearing, handling and delivery', money(data.totalDestinationInr, 'INR'), '—'],
-      ['Commission & taxes', 'Mandi commission, duty and bank charges', money(data.totalCommissionTaxInr, 'INR'), '—']
+      ['Destination charges', 'Customs clearance, handling and delivery', money(data.totalDestinationInr, 'INR'), '—'],
+      ['Commission, taxes & other costs', 'Commission, duty and bank charges', money(data.totalCommissionTaxInr, 'INR'), '—']
     );
   }
 
@@ -203,10 +207,10 @@ export async function generateQuotationPdf(data: QuotationData): Promise<void> {
   /* --------------------------------------------------------------- totals */
   const totals = [
     ['Goods purchased in India', money(data.totalPurchaseInr, 'INR')],
-    ['India-side costs (packing, transport, port, CHA)', money(data.totalOriginInr, 'INR')],
+    ['Origin charges (packing, transport, port and customs clearance)', money(data.totalOriginInr, 'INR')],
     ['Freight & insurance', money(data.totalFreightInr, 'INR')],
-    ['Dubai-side costs (clearing, handling, delivery)', money(data.totalDestinationInr, 'INR')],
-    ['Commission, duty & bank charges', money(data.totalCommissionTaxInr, 'INR')],
+    ['Destination charges (customs clearance, handling and delivery)', money(data.totalDestinationInr, 'INR')],
+    ['Commission, taxes & other costs', money(data.totalCommissionTaxInr, 'INR')],
   ];
 
   const totalsTop = Math.min(afterItems + 5, 232);
@@ -279,7 +283,7 @@ export async function generateQuotationPdf(data: QuotationData): Promise<void> {
   doc.setFontSize(7.4);
   doc.setTextColor(125, 135, 130);
   doc.text(
-    'This is a costing estimate from saved inputs, not a tax invoice. Freight, CHA, duty and commission figures are editable assumptions.',
+    'This is an estimate based on saved inputs, not a binding carrier quote, customs assessment or tax invoice. Verify charges with your providers.',
     16,
     footerY + 4.5,
     { maxWidth: pageWidth - 32 }

@@ -12,7 +12,7 @@ import { isNativeApp, isStandalone, platformLabel } from '@/lib/platform';
 import { cn } from '@/lib/utils';
 
 const FEATURES = [
-  'Live Dubai wholesale rates in AED',
+  'Publisher-updated Dubai wholesale rates in AED',
   'Export calculator with CHA, freight & commission',
   'Saved cost sheets and PDF quotations',
   'Works offline for the app shell — your draft is kept on the device',

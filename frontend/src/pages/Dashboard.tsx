@@ -96,7 +96,7 @@ export default function Dashboard() {
               Namaste, {firstName} <span aria-hidden>👋</span>
             </h1>
             <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-brand-100/85">
-              Here's what's moving in the Dubai wholesale market today. All prices in AED.
+              Review the latest published Dubai wholesale prices. All rates are shown in AED.
             </p>
           </div>
           <div className="flex flex-col gap-2.5 sm:flex-row md:flex-col lg:flex-row">
@@ -107,7 +107,7 @@ export default function Dashboard() {
             </Button>
             <Button asChild className="w-full border border-white/25 bg-white/10 text-white shadow-none backdrop-blur hover:bg-white/20 sm:w-auto">
               <Link to="/rates">
-                <TrendingUp className="h-[18px] w-[18px]" /> View live rates
+                <TrendingUp className="h-[18px] w-[18px]" /> View market rates
               </Link>
             </Button>
           </div>
@@ -125,7 +125,7 @@ export default function Dashboard() {
           <div className="min-w-0 flex-1">
             <p className="font-display text-[15px] font-bold text-amber-900 dark:text-amber-200">Unlock the full Dubai market</p>
             <p className="text-sm leading-relaxed text-amber-800/80 dark:text-amber-200/70">
-              You're on a free account. Subscribe to unlock live AED rates, the export calculator and PDF quotations.
+              You're using a free account. Subscribe to unlock Dubai market rates in AED, the export calculator and PDF quotations.
             </p>
           </div>
           <Button asChild className="w-full shrink-0 sm:w-auto">
@@ -148,7 +148,7 @@ export default function Dashboard() {
           icon={TrendingUp}
           label="Rates updated (24h)"
           value={isLoading ? '…' : String(updatedToday)}
-          sub="Fresh from the market team"
+          sub="Updated by the market team"
         />
         <StatCard
           icon={CalendarClock}
@@ -165,7 +165,7 @@ export default function Dashboard() {
               ? 'Full platform access'
               : activeSub?.currentPeriodEnd
                 ? `Valid till ${formatDate(activeSub.currentPeriodEnd)}`
-                : 'Upgrade for live rates'
+                : 'Upgrade for market-rate access'
           }
           highlight={hasPlan}
         />
@@ -177,7 +177,7 @@ export default function Dashboard() {
           <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
             <div>
               <CardTitle>Latest Dubai rates</CardTitle>
-              <CardDescription>Publisher-published AED wholesale prices. Never Indian domestic rates.</CardDescription>
+              <CardDescription>Publisher-updated Dubai wholesale prices in AED—not Indian domestic prices.</CardDescription>
             </div>
             <Button asChild variant="outline" size="sm" className="shrink-0">
               <Link to="/rates">
@@ -255,7 +255,7 @@ export default function Dashboard() {
               <ul className="space-y-2.5 text-sm">
                 {(
                   [
-                    ['dubaiRatesAccess', 'Live Dubai rates (AED)'],
+                    ['dubaiRatesAccess', 'Dubai market rates (AED)'],
                     ['calculatorAccess', 'Export cost calculator'],
                     ['pdfExportAccess', 'PDF quotations'],
                     ['savedCalculationsAccess', 'Saved cost sheets'],

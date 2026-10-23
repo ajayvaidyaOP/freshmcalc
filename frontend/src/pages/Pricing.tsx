@@ -16,7 +16,7 @@ import { isNativeApp } from '@/lib/platform';
 import { cn } from '@/lib/utils';
 
 const PLAN_FEATURES = [
-  { key: 'dubaiRatesAccess', label: 'Live Dubai market rates (AED)' },
+  { key: 'dubaiRatesAccess', label: 'Dubai market rates (AED)' },
   { key: 'calculatorAccess', label: 'India → Dubai export calculator' },
   { key: 'pdfExportAccess', label: 'PDF quotations for buyers' },
   { key: 'savedCalculationsAccess', label: 'Unlimited saved cost sheets' },
@@ -50,13 +50,13 @@ export default function Pricing() {
       <section className="container relative pb-8 pt-12 text-center sm:pt-16">
         <Reveal>
           <Badge variant="soft" className="normal-case tracking-normal">
-            <Sparkles className="h-3.5 w-3.5" /> All plans include every feature
+            <Sparkles className="h-3.5 w-3.5" /> Choose the features and term that fit your business
           </Badge>
           <h1 className="mx-auto mt-5 max-w-3xl text-4xl font-extrabold leading-tight sm:text-5xl">
             Simple pricing for <span className="text-gradient">serious exporters</span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-muted-foreground sm:text-lg">
-            No per-shipment fees. No hidden charges. Just live Dubai AED rates and complete export costing for one flat price.
+            No per-shipment fee. Plan features and billing terms are shown below; prices are listed in Indian rupees.
           </p>
         </Reveal>
       </section>
@@ -132,7 +132,7 @@ export default function Pricing() {
                       </Link>
                     </Button>
                     <p className={cn('mt-3 text-center text-xs', popular ? 'text-brand-200/70' : 'text-muted-foreground')}>
-                      Billed in INR · GST invoice available
+                      Billed in Indian rupees (INR)
                     </p>
                   </article>
                 </Reveal>
@@ -143,7 +143,7 @@ export default function Pricing() {
 
         {usingFallback && !isLoading && (
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            Showing standard plan pricing. Live plan catalogue loads when the FreshmCalc server is connected.
+            Showing reference pricing. Current plan details load when the FreshmCalc server is available.
           </p>
         )}
 
