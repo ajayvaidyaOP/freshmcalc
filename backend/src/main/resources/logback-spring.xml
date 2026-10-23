@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
   Readable logs with a correlation id on every line:
 
-      2026-10-22 10:42:11.532  INFO 1 --- [http-nio-8080-exec-3] [a1b2c3d4] c.f.c.RequestIdFilter : ...
+      2026-10-22 10:42:11.532  INFO 1 - - - [http-nio-8080-exec-3] [a1b2c3d4] c.f.c.RequestIdFilter : ...
 
   The bracketed value is the X-Request-Id returned to the client, so a support
   ticket can name one line in `docker compose logs backend`.
@@ -27,3 +27,4 @@
     <!-- Our own packages at INFO; Hibernate/SQL stays quiet unless asked. -->
     <logger name="com.freshmcalc" level="INFO"/>
 </configuration>
+
