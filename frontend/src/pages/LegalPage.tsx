@@ -40,7 +40,7 @@ const PRIVACY: Section[] = [
     heading: '3. Why we use it',
     body: (
       <ul className="list-disc space-y-1.5 pl-5">
-        <li>To run the calculator, store your sheets and show live Dubai rates.</li>
+        <li>To run the calculator, store your sheets and show publisher-updated Dubai market rates.</li>
         <li>To take subscription payments and reconcile renewals and refunds.</li>
         <li>To send password-reset and essential service emails — never marketing unless you opt in.</li>
         <li>To detect abuse and meet tax and accounting obligations.</li>

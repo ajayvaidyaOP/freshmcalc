@@ -343,7 +343,7 @@ export default function Settings() {
       <div className="flex flex-col gap-3 rounded-3xl border border-border/80 bg-card p-5 sm:flex-row sm:items-center">
         <div className="flex-1">
           <h3 className="font-display text-[15px] font-bold">Sign out of FreshmCalc</h3>
-          <p className="text-sm text-muted-foreground">You'll need to sign in again to see live Dubai rates on this device.</p>
+          <p className="text-sm text-muted-foreground">You'll need to sign in again to view Dubai market rates on this device.</p>
         </div>
         <Button variant="outline" onClick={logout} className="w-full shrink-0 sm:w-auto">
           <LogOut className="h-4 w-4" /> Sign out

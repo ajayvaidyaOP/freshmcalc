@@ -21,7 +21,7 @@
 
 export type CostGroup = 'PURCHASE' | 'ORIGIN' | 'FREIGHT' | 'DESTINATION' | 'COMMISSION_TAX';
 export type Currency = 'INR' | 'AED';
-export type CostBasis = 'shipment' | 'box';
+export type CostBasis = 'shipment' | 'container' | 'box' | 'carton' | 'kg' | 'tonne';
 export type PercentBase = 'purchase' | 'freight' | 'revenue';
 export type PriceUnit = 'per box' | 'per kg';
 
@@ -120,18 +120,18 @@ const GROUP_ORDER: CostGroup[] = ['PURCHASE', 'ORIGIN', 'FREIGHT', 'DESTINATION'
 
 export const GROUP_LABELS: Record<CostGroup, string> = {
   PURCHASE: 'Product purchase',
-  ORIGIN: 'India-side costs',
-  FREIGHT: 'Freight & insurance',
-  DESTINATION: 'Dubai-side costs',
-  COMMISSION_TAX: 'Commission & taxes',
+  ORIGIN: 'Origin charges',
+  FREIGHT: 'International freight & insurance',
+  DESTINATION: 'Destination charges',
+  COMMISSION_TAX: 'Commission, taxes & other costs',
 };
 
 export const GROUP_HINTS: Record<CostGroup, string> = {
   PURCHASE: 'What you pay the farmer / packing house in India.',
-  ORIGIN: 'Packing material, inland trucking, port handling, CHA & export documents.',
-  FREIGHT: 'Ocean freight and marine cargo insurance.',
-  DESTINATION: 'Jebel Ali handling, Dubai customs broker, last-mile delivery.',
-  COMMISSION_TAX: 'Mandi commission, UAE customs duty (if any) and bank charges.',
+  ORIGIN: 'Packing, inland transport, origin-port handling and export documentation.',
+  FREIGHT: 'International freight and marine cargo insurance.',
+  DESTINATION: 'Destination-port handling, customs clearance and local delivery.',
+  COMMISSION_TAX: 'Commission, applicable taxes, bank charges and other expenses.',
 };
 
 /** Round half-up to `digits` — mirrors BigDecimal.ROUND_HALF_UP on the backend. */
@@ -162,9 +162,9 @@ function groupOf(group: string): Exclude<CostGroup, 'PURCHASE'> {
  */
 function resolveLine(
   line: CostLine,
-  ctx: { fx: number; boxes: number; purchaseInr: number; freightInr: number; revenueAed: number }
+  ctx: { fx: number; boxes: number; netWeightKg: number; purchaseInr: number; freightInr: number; revenueAed: number }
 ): CostLineResult {
-  const { fx, boxes, purchaseInr, freightInr, revenueAed } = ctx;
+  const { fx, boxes, netWeightKg, purchaseInr, freightInr, revenueAed } = ctx;
   const safeFx = fx > 0 ? fx : DEFAULT_FX;
 
   let amountInr: number;
@@ -185,7 +185,13 @@ function resolveLine(
     }
   } else {
     const value = n(line.amount);
-    const quantity = line.basis === 'box' ? boxes : 1;
+    const quantity = line.basis === 'box' || line.basis === 'carton'
+      ? boxes
+      : line.basis === 'kg'
+        ? netWeightKg
+        : line.basis === 'tonne'
+          ? netWeightKg / 1000
+          : 1;
     if ((line.currency ?? 'INR') === 'AED') {
       amountAed = value * quantity;
       amountInr = amountAed / safeFx;
@@ -228,7 +234,7 @@ export function calculateExport(input: CalcInput): CalcResult {
   // Pass 1 — fixed amounts. Needed so "% of freight" lines see the freight total.
   const fixed = enabled.filter((l) => l.mode !== 'percent');
   const fixedResults = fixed.map((line) =>
-    resolveLine(line, { fx, boxes, purchaseInr, freightInr: 0, revenueAed: 0 })
+    resolveLine(line, { fx, boxes, netWeightKg, purchaseInr, freightInr: 0, revenueAed: 0 })
   );
   const freightFixedInr = fixedResults
     .filter((l) => l.group === 'FREIGHT')
@@ -244,7 +250,7 @@ export function calculateExport(input: CalcInput): CalcResult {
   const percentResults = enabled
     .filter((l) => l.mode === 'percent')
     .map((line) =>
-      resolveLine(line, { fx, boxes, purchaseInr, freightInr: freightFixedInr, revenueAed })
+      resolveLine(line, { fx, boxes, netWeightKg, purchaseInr, freightInr: freightFixedInr, revenueAed })
     );
 
   // Keep the user's original ordering in the breakdown.
@@ -316,6 +322,7 @@ export function toBackendItems(result: CalcResult): Array<{
   amount: number;
   currency: 'INR';
   costGroup: CostGroup;
+  sourceNote?: string;
 }> {
   const items: Array<{
     expenseCategory: string;
@@ -323,6 +330,7 @@ export function toBackendItems(result: CalcResult): Array<{
     amount: number;
     currency: 'INR';
     costGroup: CostGroup;
+    sourceNote?: string;
   }> = [];
   items.push({
     expenseCategory: 'PRODUCT',
@@ -339,6 +347,11 @@ export function toBackendItems(result: CalcResult): Array<{
       amount: round(line.amountInr, 2),
       currency: 'INR' as const,
       costGroup: line.group,
+      sourceNote: line.id.startsWith('port-charge-') || line.id.startsWith('freight-quote-')
+        ? line.note
+        : line.custom
+          ? 'User-entered cost; verify the amount with your provider.'
+          : line.note ? 'Illustrative sample cost; replace with a current provider quote.' : undefined,
     });
   }
 

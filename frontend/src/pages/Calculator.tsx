@@ -27,8 +27,11 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { PlanLock } from '@/components/common/PlanLock';
 import { CostLinesEditor } from '@/components/calculator/CostLinesEditor';
 import { ResultPanel } from '@/components/calculator/ResultPanel';
+import { ConfiguredChargesPanel } from '@/components/calculator/ConfiguredChargesPanel';
 import { ratesService } from '@/services/rates.service';
 import { calculationsService } from '@/services/calculations.service';
+import { portsService } from '@/services/ports.service';
+import { routesService } from '@/services/routes.service';
 import { apiError } from '@/lib/api';
 import { generateQuotationPdf } from '@/lib/pdf';
 import { isNativeApp } from '@/lib/platform';
@@ -59,6 +62,7 @@ interface FormState {
   destinationCity: string;
   destinationPort: string;
   containerType: string;
+  shippingMode: string;
   boxes: string;
   kgPerBox: string;
   grossWeightKg: string;
@@ -83,6 +87,7 @@ const DEFAULTS: FormState = {
   destinationCity: 'Dubai',
   destinationPort: 'Jebel Ali Port, Dubai',
   containerType: 'REEFER',
+  shippingMode: 'SEA',
   boxes: '2200',
   kgPerBox: '5',
   grossWeightKg: '',
@@ -91,7 +96,7 @@ const DEFAULTS: FormState = {
   sellingPrice: '42.5',
   sellingPriceUnit: 'per box',
   fx: String(DEFAULT_FX),
-  fxSource: 'Bank TT rate',
+  fxSource: 'Example value — replace with your bank quote',
   assumptions: '5 kg export carton · reefer container',
   lines: defaultCostLines(),
 };
@@ -129,12 +134,55 @@ export default function Calculator() {
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState<any>(null);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
+  const [activeStep, setActiveStep] = React.useState<1 | 2 | 3>(1);
+  const [stepError, setStepError] = React.useState('');
 
   const { data: rates = [] } = useQuery({
     queryKey: ['rates'],
     queryFn: ratesService.listPublished,
     enabled: calculatorAllowed && hasFeature(user, 'dubaiRatesAccess'),
   });
+  const portsQuery = useQuery({
+    queryKey: ['ports'],
+    queryFn: portsService.listPorts,
+    enabled: calculatorAllowed,
+  });
+  const ports: any[] = portsQuery.data || [];
+  const selectedOriginPort = ports.find((port) => port.name === form.originPort);
+  const selectedDestinationPort = ports.find((port) => port.name === form.destinationPort);
+  const hasSelectedRoutePorts = Boolean(
+    selectedOriginPort?.id && selectedDestinationPort?.id && selectedOriginPort.id !== selectedDestinationPort.id
+  );
+  const portChargesQuery = useQuery({
+    queryKey: ['port-charges', selectedOriginPort?.id, selectedDestinationPort?.id, form.containerType, form.shippingMode, form.product],
+    queryFn: () => portsService.listApplicableCharges({
+      originPortId: selectedOriginPort.id,
+      destinationPortId: selectedDestinationPort.id,
+      containerType: form.containerType,
+      shippingMode: form.shippingMode,
+      productName: form.product,
+    }),
+    enabled: calculatorAllowed && hasSelectedRoutePorts,
+  });
+  const routesQuery = useQuery({
+    queryKey: ['routes', selectedOriginPort?.id, selectedDestinationPort?.id],
+    queryFn: routesService.listRoutes,
+    enabled: calculatorAllowed && hasSelectedRoutePorts,
+  });
+  const matchingRoutes: any[] = (routesQuery.data || []).filter((route: any) =>
+    route.originPortId === selectedOriginPort?.id
+      && route.destinationPortId === selectedDestinationPort?.id
+      && route.operational === true
+  );
+  const matchedRoute: any = matchingRoutes.length === 1 ? matchingRoutes[0] : null;
+  const freightQuotesQuery = useQuery({
+    queryKey: ['freight-quotes', matchedRoute?.id, form.containerType],
+    queryFn: routesService.listFreightQuotes,
+    enabled: calculatorAllowed && form.shippingMode === 'SEA' && Boolean(matchedRoute?.id),
+  });
+  const routeFreightQuotes: any[] = (freightQuotesQuery.data || []).filter((quote: any) =>
+    quote.routeId === matchedRoute?.id && quote.containerType === form.containerType
+  );
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -202,7 +250,7 @@ export default function Calculator() {
     set('sellingPrice', String(liveRate.priceAmount));
     set('sellingPriceUnit', unit);
     toast({
-      title: 'Dubai live rate applied',
+      title: 'Published Dubai rate applied',
       description: `AED ${formatNumber(liveRate.priceAmount, 2)} ${unit}${liveRate.variety ? ` · ${liveRate.variety}` : ''}`,
       variant: 'success',
     });
@@ -211,11 +259,101 @@ export default function Calculator() {
   const updateLine = (id: string, patch: Partial<CostLine>) =>
     setForm((current) => ({
       ...current,
-      lines: current.lines.map((line) => (line.id === id ? { ...line, ...patch } : line)),
+      lines: current.lines.map((line) => {
+        if (line.id !== id) return line;
+        const amountWasChanged = patch.amount !== undefined && patch.amount !== line.amount;
+        const isConfiguredRecord = line.id.startsWith('port-charge-') || line.id.startsWith('freight-quote-');
+        if (!amountWasChanged || !isConfiguredRecord) return { ...line, ...patch };
+        const originalName = line.name.replace(/ · user-adjusted$/, '');
+        const adjustmentNote = 'Amount edited by the user; it no longer matches the configured record.';
+        return {
+          ...line,
+          ...patch,
+          name: `${originalName} · user-adjusted`,
+          note: line.note?.includes(adjustmentNote) ? line.note : `${line.note || ''} ${adjustmentNote}`.trim(),
+        };
+      }),
     }));
+
+  const addConfiguredCharge = (charge: any) => {
+    const id = `port-charge-${charge.id}`;
+    if (form.lines.some((line) => line.id === id)) {
+      toast({ title: 'Charge already included', description: 'This configured charge has already been added to the estimate.' });
+      return;
+    }
+    const group: CostLine['group'] = charge.direction === 'DESTINATION' ? 'DESTINATION' : 'ORIGIN';
+    const sampleIds = new Set<string>();
+    const category = String(charge.chargeCategory || '').toUpperCase();
+    if (group === 'ORIGIN' && ['PORT_HANDLING', 'TERMINAL_HANDLING'].includes(category)) sampleIds.add('origin_port');
+    if (group === 'ORIGIN' && ['DOCUMENTATION', 'CUSTOMS_CLEARANCE'].includes(category)) sampleIds.add('cha');
+    if (group === 'DESTINATION' && ['PORT_HANDLING', 'TERMINAL_HANDLING', 'CUSTOMS_CLEARANCE', 'DELIVERY_ORDER'].includes(category)) sampleIds.add('destination_handling');
+    const existingManual = form.lines.find((line) => line.enabled && line.custom && line.group === group && line.category.toUpperCase() === category);
+    if (existingManual) {
+      toast({ title: 'Check for duplicate costs', description: `“${existingManual.name}” uses the same charge category. Review or remove it before adding this record.`, variant: 'destructive' });
+      return;
+    }
+    const status = String(charge.currentStatus || charge.verificationStatus || 'UNCONFIRMED');
+    const validUntil = charge.effectiveUntil ? new Date(charge.effectiveUntil).toLocaleDateString('en-IN') : 'no end date recorded';
+    const sourceNote = `Status: ${status}. Source: ${charge.source || 'not recorded'}. Valid until: ${validUntil}. Last verified: ${charge.lastVerifiedAt ? new Date(charge.lastVerifiedAt).toLocaleDateString('en-IN') : 'not recorded'}.`;
+    const newLine: CostLine = {
+      id,
+      name: `${charge.description} · ${status.toLowerCase()}`,
+      category,
+      group,
+      mode: 'amount',
+      basis: ({ PER_SHIPMENT: 'shipment', PER_CONTAINER: 'container', PER_KG: 'kg', PER_TONNE: 'tonne', PER_CARTON: 'carton' } as const)[charge.chargingBasis as 'PER_SHIPMENT' | 'PER_CONTAINER' | 'PER_KG' | 'PER_TONNE' | 'PER_CARTON'],
+      currency: charge.currency,
+      amount: Number(charge.amount),
+      enabled: true,
+      custom: true,
+      note: sourceNote,
+    };
+    setForm((current) => ({
+      ...current,
+      lines: [
+        ...current.lines.map((line) => sampleIds.has(line.id) ? { ...line, enabled: false } : line),
+        newLine,
+      ],
+    }));
+    toast({ title: 'Configured charge added', description: `${charge.currency} ${formatNumber(Number(charge.amount), 2)} · ${status.toLowerCase()}`, variant: 'success' });
+  };
+
+  const addConfiguredFreight = (quote: any) => {
+    const id = `freight-quote-${quote.id}`;
+    if (form.lines.some((line) => line.id === id)) {
+      toast({ title: 'Freight quote already included', description: 'This quote has already been added to the estimate.' });
+      return;
+    }
+    if (form.lines.some((line) => line.enabled && line.custom && line.category === 'OCEAN_FREIGHT')) {
+      toast({ title: 'Check for duplicate freight', description: 'A custom freight cost is already included. Review or remove it before adding this quote.', variant: 'destructive' });
+      return;
+    }
+    const end = quote.expiryDate ? new Date(quote.expiryDate).toLocaleDateString('en-IN') : 'no expiry recorded';
+    const line: CostLine = {
+      id,
+      name: `${quote.containerType} freight quote · admin-entered`,
+      category: 'OCEAN_FREIGHT',
+      group: 'FREIGHT',
+      mode: 'amount',
+      basis: 'container',
+      currency: quote.currency,
+      amount: Number(quote.amount),
+      enabled: true,
+      custom: true,
+      note: `Status: admin-entered; verification status is not available. Source: ${quote.source || 'not recorded'}. Valid until: ${end}.`,
+    };
+    setForm((current) => ({
+      ...current,
+      lines: [...current.lines.map((existing) => existing.id === 'ocean_freight' ? { ...existing, enabled: false } : existing), line],
+    }));
+    toast({ title: 'Freight quote added', description: 'Admin-entered; check the source and validity before relying on it.', variant: 'success' });
+  };
 
   const resetAll = () => {
     setForm({ ...DEFAULTS, lines: defaultCostLines() });
+    setActiveStep(1);
+    setStepError('');
+    setAdvancedOpen(false);
     setSaved(null);
     try {
       localStorage.removeItem(DRAFT_KEY);
@@ -232,7 +370,36 @@ export default function Calculator() {
     if (num(form.productCost) <= 0) return 'Enter your purchase cost in India.';
     if (num(form.sellingPrice) <= 0) return 'Enter your expected Dubai selling price.';
     if (fx <= 0) return 'Enter a valid INR → AED exchange rate.';
+    if (!form.originPort.trim()) return 'Enter an origin port.';
+    if (!form.destinationPort.trim()) return 'Enter a destination port.';
     return null;
+  };
+
+  const continueWorkflow = () => {
+    const problem = activeStep === 1
+      ? (!form.product.trim() ? 'Enter the product you are exporting.'
+        : boxes <= 0 ? 'Enter the number of boxes (at least 1).'
+        : kgPerBox <= 0 ? 'Enter a positive weight per box.'
+        : num(form.productCost) <= 0 ? 'Enter your purchase cost in India.'
+        : null)
+      : activeStep === 2
+        ? (!form.originPort.trim() ? 'Enter an origin port.'
+          : !form.destinationPort.trim() ? 'Enter a destination port.'
+          : fx <= 0 ? 'Enter the current INR → AED rate from your bank or FX provider.'
+          : null)
+        : null;
+    if (problem) {
+      setStepError(problem);
+      return;
+    }
+    setStepError('');
+    if (activeStep === 1) setAdvancedOpen(true);
+    if (activeStep < 3) setActiveStep((activeStep + 1) as 2 | 3);
+  };
+
+  const goBack = () => {
+    setStepError('');
+    if (activeStep > 1) setActiveStep((activeStep - 1) as 1 | 2);
   };
 
   const buildPayload = () => ({
@@ -355,7 +522,11 @@ export default function Calculator() {
             group: line.group,
             amountInr: line.amountInr,
             amountAed: line.amountAed,
+            note: line.id.startsWith('port-charge-') || line.id.startsWith('freight-quote-')
+              ? line.note
+              : line.custom ? 'User-entered cost; verify the amount with your provider.' : 'Illustrative sample cost; replace with a current provider quote.',
           })),
+
         ],
         createdAt: new Date().toISOString(),
       });
@@ -386,7 +557,7 @@ export default function Calculator() {
       <PageHeader
         eyebrow="India → Dubai"
         title="Export calculator"
-        description="Purchase, packing, CHA, freight, duty, commission — one simple sheet, live profit in AED."
+        description="Build an estimated landed-cost sheet in three guided steps. Every charge and FX input must be checked against your current quotations."
         actions={
           <Button type="button" variant="outline" onClick={resetAll}>
             <RotateCcw className="h-4 w-4" /> Reset
@@ -427,6 +598,42 @@ export default function Calculator() {
         </div>
       )}
 
+      <section aria-label="Export cost workflow" className="rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
+        <ol className="grid grid-cols-3 gap-2" aria-label={`Step ${activeStep} of 3`}>
+          {[
+            { number: 1, label: 'Shipment' },
+            { number: 2, label: 'Route & price' },
+            { number: 3, label: 'Cost breakdown' },
+          ].map((item) => (
+            <li key={item.number}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (item.number < activeStep) { setActiveStep(item.number as 1 | 2); setStepError(''); }
+                }}
+                aria-current={activeStep === item.number ? 'step' : undefined}
+                disabled={item.number > activeStep}
+                className={cn(
+                  'flex min-h-[48px] w-full items-center gap-2 rounded-xl border px-2.5 text-left text-xs font-bold sm:px-3 sm:text-sm',
+                  activeStep === item.number
+                    ? 'border-brand-500 bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-200'
+                    : item.number < activeStep
+                      ? 'border-brand-200 bg-card text-brand-700 dark:border-brand-800 dark:text-brand-300'
+                      : 'border-border bg-muted/50 text-muted-foreground'
+                )}
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-current/10 text-[11px]">{item.number}</span>
+                <span className="leading-tight">{item.label}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          Estimates use your entries and example starting values—not automatic carrier, port, customs or FX quotes. Confirm charges with your providers.
+        </p>
+        {stepError && <p role="alert" className="mt-2 text-sm font-semibold text-destructive">{stepError}</p>}
+      </section>
+
       {/* Route strip */}
       <div className="surface-forest flex items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-white shadow-soft sm:gap-4 sm:px-5">
         <div className="min-w-0 flex-1 text-right">
@@ -449,7 +656,7 @@ export default function Calculator() {
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_392px]">
         <div className="min-w-0 space-y-4 sm:space-y-5">
           {/* Step 1 — shipment */}
-          <StepCard step={1} icon={Package} title="Your shipment" hint="What are you sending?">
+          {activeStep === 1 && <StepCard step={1} icon={Package} title="Shipment details" hint="What are you sending?">
             <div className="mb-4">
               <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-muted-foreground">
                 Quick start
@@ -536,13 +743,14 @@ export default function Calculator() {
                 {formatNumber(result.netWeightKg, 0)} kg net · {formatNumber(result.grossWeightKg, 0)} kg gross
               </span>
             </div>
-          </StepCard>
+          </StepCard>}
 
-          {/* Step 2 — Dubai price */}
+          {/* Step 2 — route and Dubai price */}
+          {activeStep === 2 && <>
           <StepCard
             step={2}
             icon={BadgeIndianRupee}
-            title="Your Dubai selling price"
+            title="Route & Dubai selling price"
             hint="Always a Dubai market price, in AED"
           >
             <div className="grid gap-3.5 sm:grid-cols-2">
@@ -574,7 +782,7 @@ export default function Calculator() {
               {liveRate ? (
                 <>
                   <p className="min-w-0 flex-1 text-[12px] leading-snug text-brand-900/80 dark:text-brand-100/80">
-                    Dubai live rate:{' '}
+                    Published Dubai market rate:{' '}
                     <strong>
                       AED {formatNumber(liveRate.priceAmount, 2)} {liveRate.pricingUnit}
                     </strong>
@@ -586,7 +794,7 @@ export default function Calculator() {
                 </>
               ) : (
                 <p className="text-[12px] leading-snug text-brand-900/70 dark:text-brand-100/70">
-                  No published Dubai rate for “{form.product || 'this product'}” yet — type your buyer's price.
+                  No published Dubai rate found for “{form.product || 'this product'}” — enter your buyer's price.
                 </p>
               )}
             </div>
@@ -602,45 +810,7 @@ export default function Calculator() {
             </div>
           </StepCard>
 
-          {/* Step 3 — costs */}
-          <StepCard
-            step={3}
-            icon={Wallet}
-            title="Your export costs"
-            hint={`${enabledCosts} of ${form.lines.length} active — edit any amount`}
-          >
-            <CostLinesEditor
-              lines={form.lines}
-              results={result.lines}
-              fx={fx}
-              onUpdate={updateLine}
-              onAdd={(line) => setForm((current) => ({ ...current, lines: [...current.lines, line] }))}
-              onRemove={(id) => setForm((current) => ({ ...current, lines: current.lines.filter((l) => l.id !== id) }))}
-              onReset={() =>
-                setForm((current) => ({
-                  ...current,
-                  lines: defaultCostLines(),
-                }))
-              }
-            />
-
-            <div className="mt-3.5 space-y-1.5 rounded-xl bg-muted/60 px-3.5 py-3 text-[12.5px]">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Goods + all export costs (INR)</span>
-                <span className="font-mono font-bold">{formatINR(result.totalCostInr, 0)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Total landed cost (AED)</span>
-                <span className="font-mono font-bold">{formatAED(result.totalCostAed, 0)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 text-brand-700 dark:text-brand-300">
-                <span className="font-semibold">Dubai sale value (AED)</span>
-                <span className="font-mono font-bold">{formatAED(result.revenueAed, 0)}</span>
-              </div>
-            </div>
-          </StepCard>
-
-          {/* Advanced */}
+          {/* Route and FX configuration for guided step 2 */}
           <Card>
             <button
               type="button"
@@ -652,9 +822,9 @@ export default function Calculator() {
                 <Info className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-display text-[14.5px] font-bold">Route & advanced details</span>
+                <span className="block font-display text-[14.5px] font-bold">Route & shipping details</span>
                 <span className="block text-[12px] text-muted-foreground">
-                  Ports, container, FX rate, variety, notes — optional
+                  Choose configured ports to look up applicable port charges and route freight quotes.
                 </span>
               </span>
               <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', advancedOpen && 'rotate-180')} />
@@ -665,8 +835,11 @@ export default function Calculator() {
                   <Field label="Origin city" htmlFor="originCity">
                     <Input id="originCity" value={form.originCity} onChange={(e) => set('originCity', e.target.value)} />
                   </Field>
-                  <Field label="Origin port" htmlFor="originPort">
-                    <Input id="originPort" value={form.originPort} onChange={(e) => set('originPort', e.target.value)} />
+                  <Field label="Origin port" htmlFor="originPort" hint="Choose a configured port name to load applicable backend charges.">
+                    <Input id="originPort" list="freshmcalc-origin-ports" value={form.originPort} onChange={(e) => set('originPort', e.target.value)} />
+                    <datalist id="freshmcalc-origin-ports">
+                      {ports.filter((port) => ['ORIGIN', 'BOTH', 'SEA'].includes(port.portType)).map((port) => <option key={port.id} value={port.name}>{port.unlocode}</option>)}
+                    </datalist>
                   </Field>
                   <Field label="Destination city" htmlFor="destinationCity">
                     <Input
@@ -675,12 +848,16 @@ export default function Calculator() {
                       onChange={(e) => set('destinationCity', e.target.value)}
                     />
                   </Field>
-                  <Field label="Destination port" htmlFor="destinationPort">
+                  <Field label="Destination port" htmlFor="destinationPort" hint="Choose a configured port name to load applicable backend charges.">
                     <Input
                       id="destinationPort"
+                      list="freshmcalc-destination-ports"
                       value={form.destinationPort}
                       onChange={(e) => set('destinationPort', e.target.value)}
                     />
+                    <datalist id="freshmcalc-destination-ports">
+                      {ports.filter((port) => ['DESTINATION', 'BOTH', 'SEA'].includes(port.portType)).map((port) => <option key={port.id} value={port.name}>{port.unlocode}</option>)}
+                    </datalist>
                   </Field>
                   <Field label="Container" htmlFor="containerType">
                     <Select value={form.containerType} onValueChange={(value) => set('containerType', value)}>
@@ -692,6 +869,17 @@ export default function Calculator() {
                         <SelectItem value="20FT">20 FT dry</SelectItem>
                         <SelectItem value="40FT">40 FT dry</SelectItem>
                         <SelectItem value="40HC">40 FT high cube</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Shipping method" htmlFor="shippingMode">
+                    <Select value={form.shippingMode} onValueChange={(value) => set('shippingMode', value)}>
+                      <SelectTrigger id="shippingMode"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SEA">Sea freight</SelectItem>
+                        <SelectItem value="AIR">Air freight</SelectItem>
+                        <SelectItem value="ROAD">Road</SelectItem>
+                        <SelectItem value="RAIL">Rail</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -708,7 +896,7 @@ export default function Calculator() {
                   <Field label="Grade" htmlFor="grade">
                     <Input id="grade" value={form.grade} onChange={(e) => set('grade', e.target.value)} />
                   </Field>
-                  <Field label="FX rate — 1 INR in AED" htmlFor="fx" hint={`₹100 = AED ${formatNumber(fx * 100, 2)}`}>
+                  <Field label="Manual FX rate — 1 INR in AED" htmlFor="fx" hint={`Example only unless you verify it · ₹100 = AED ${formatNumber(fx * 100, 2)}`}>
                     <Input
                       id="fx"
                       type="number"
@@ -752,22 +940,97 @@ export default function Calculator() {
               </CardContent>
             )}
           </Card>
+          </>}
+
+          {/* Step 3 — costs */}
+          {activeStep === 3 && <StepCard
+            step={3}
+            icon={Wallet}
+            title="Cost breakdown"
+            hint={`${enabledCosts} of ${form.lines.length} active — edit any amount`}
+          >
+            <ConfiguredChargesPanel
+              portsReady={hasSelectedRoutePorts}
+              portsLoading={portsQuery.isLoading}
+              portsError={portsQuery.isError}
+              onRetryPorts={() => portsQuery.refetch()}
+              charges={portChargesQuery.data || []}
+              chargesLoading={portChargesQuery.isLoading}
+              chargesError={portChargesQuery.isError}
+              onRetryCharges={() => portChargesQuery.refetch()}
+              shippingMode={form.shippingMode}
+              routeLoading={routesQuery.isLoading}
+              routeError={routesQuery.isError}
+              onRetryRoute={() => routesQuery.refetch()}
+              routeCount={matchingRoutes.length}
+              freightQuotes={routeFreightQuotes}
+              freightLoading={freightQuotesQuery.isLoading}
+              freightError={freightQuotesQuery.isError}
+              onRetryFreight={() => freightQuotesQuery.refetch()}
+              onAddCharge={addConfiguredCharge}
+              onAddFreight={addConfiguredFreight}
+            />
+            <CostLinesEditor
+              lines={form.lines}
+              results={result.lines}
+              fx={fx}
+              onUpdate={updateLine}
+              onAdd={(line) => setForm((current) => ({ ...current, lines: [...current.lines, line] }))}
+              onRemove={(id) => setForm((current) => ({ ...current, lines: current.lines.filter((l) => l.id !== id) }))}
+              onReset={() =>
+                setForm((current) => ({
+                  ...current,
+                  lines: defaultCostLines(),
+                }))
+              }
+            />
+
+            <div className="mt-3.5 space-y-1.5 rounded-xl bg-muted/60 px-3.5 py-3 text-[12.5px]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Goods + all export costs (INR)</span>
+                <span className="font-mono font-bold">{formatINR(result.totalCostInr, 0)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Total landed cost (AED)</span>
+                <span className="font-mono font-bold">{formatAED(result.totalCostAed, 0)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-brand-700 dark:text-brand-300">
+                <span className="font-semibold">Dubai sale value (AED)</span>
+                <span className="font-mono font-bold">{formatAED(result.revenueAed, 0)}</span>
+              </div>
+            </div>
+          </StepCard>}
+
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 sm:p-4">
+            <Button type="button" variant="outline" onClick={goBack} disabled={activeStep === 1}>
+              Back
+            </Button>
+            {activeStep < 3 ? (
+              <Button type="button" onClick={continueWorkflow} className="min-w-[150px]">
+                Continue <ArrowRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button type="button" onClick={onSave} disabled={saving} className="min-w-[170px]">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save cost sheet
+              </Button>
+            )}
+          </div>
 
           {/* Mobile result card */}
-          <div className="lg:hidden">
+          {activeStep === 3 && <div className="lg:hidden">
             <ResultPanel result={result} saving={saving} onSave={onSave} onPreviewPdf={onPreviewPdf} />
-          </div>
+          </div>}
 
           <p className="flex items-start gap-2 px-1 text-[11.5px] leading-relaxed text-muted-foreground">
             <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" />
-            Cost heads are editable starting points based on a typical reefer shipment. Replace them with your
-            freight forwarder and CHA quotations for an exact sheet.
+            Sample figures are illustrative, not verified quotations. Replace every enabled charge and the sample FX value with current, route-specific quotes before relying on this estimate.
           </p>
         </div>
 
         {/* Desktop live result */}
         <aside className="hidden lg:sticky lg:top-[88px] lg:block">
-          <ResultPanel result={result} saving={saving} onSave={onSave} onPreviewPdf={onPreviewPdf} />
+          <ResultPanel result={result} saving={saving} actionsEnabled={activeStep === 3} onSave={onSave} onPreviewPdf={onPreviewPdf} />
         </aside>
       </div>
 
@@ -776,24 +1039,30 @@ export default function Calculator() {
         <div className="mx-auto flex max-w-[1440px] items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-[9.5px] font-extrabold uppercase tracking-wider text-muted-foreground">
-              Profit · {formatNumber(result.marginPct, 1)}% margin
+              {activeStep === 3 ? `Profit · ${formatNumber(result.marginPct, 1)}% margin` : 'Estimated landed cost'}
             </p>
             <p
               className={cn(
                 'font-display text-[19px] font-extrabold leading-tight',
-                profitable ? 'text-brand-700 dark:text-brand-300' : 'text-red-500'
+                activeStep === 3 && !profitable ? 'text-red-500' : 'text-brand-700 dark:text-brand-300'
               )}
             >
-              {formatAED(result.profitAed, 0)}
+              {activeStep === 3 ? formatAED(result.profitAed, 0) : formatAED(result.totalCostAed, 0)}
               <span className="ml-1.5 font-sans text-[10.5px] font-semibold text-muted-foreground">
-                / {formatAED(result.totalCostAed, 0)} cost
+                {activeStep === 3 ? `/ ${formatAED(result.totalCostAed, 0)} cost` : 'AED, based on current entries'}
               </span>
             </p>
           </div>
-          <Button type="button" size="lg" onClick={onSave} disabled={saving} className="shrink-0">
-            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-[18px] w-[18px]" />}
-            Save
-          </Button>
+          {activeStep === 3 ? (
+            <Button type="button" size="lg" onClick={onSave} disabled={saving} className="shrink-0">
+              {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-[18px] w-[18px]" />}
+              Save
+            </Button>
+          ) : (
+            <Button type="button" size="lg" onClick={continueWorkflow} className="shrink-0">
+              Continue <ArrowRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
       <div className="h-20 lg:hidden" aria-hidden />

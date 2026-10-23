@@ -25,13 +25,14 @@ const GROUP_COLORS: Record<CostGroup, string> = {
 interface ResultPanelProps {
   result: CalcResult;
   saving?: boolean;
+  actionsEnabled?: boolean;
   onSave: () => void;
   onPreviewPdf: () => void;
   className?: string;
 }
 
-/** Live profit + landed-cost panel. Shared by desktop sidebar and mobile sheet. */
-export function ResultPanel({ result, saving, onSave, onPreviewPdf, className }: ResultPanelProps) {
+/** Estimated profit and landed-cost panel, shared by desktop and mobile layouts. */
+export function ResultPanel({ result, saving, actionsEnabled = true, onSave, onPreviewPdf, className }: ResultPanelProps) {
   const [breakdownOpen, setBreakdownOpen] = React.useState(false);
   const profitable = result.profitAed >= 0;
   const margin = Math.max(0, Math.min(100, result.marginPct));
@@ -40,10 +41,10 @@ export function ResultPanel({ result, saving, onSave, onPreviewPdf, className }:
     <Card className={cn('surface-forest overflow-hidden border-transparent text-white shadow-lift', className)}>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base text-white">
-          <Wallet className="h-5 w-5 text-lime-300" /> Live profit
+          <Wallet className="h-5 w-5 text-lime-300" /> Shipment estimate
         </CardTitle>
         <p className="text-[11.5px] leading-relaxed text-brand-100/75">
-          Every cost head below is included. Nothing is hidden until save.
+          Totals reflect enabled sample and user-entered costs, plus any configured port charges or freight quotes you explicitly added. Unavailable records are not estimated automatically.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -141,14 +142,14 @@ export function ResultPanel({ result, saving, onSave, onPreviewPdf, className }:
         </div>
 
         <div className="space-y-2">
-          <Button type="button" variant="lime" size="lg" className="w-full" onClick={onSave} disabled={saving}>
+          <Button type="button" variant="lime" size="lg" className="w-full" onClick={onSave} disabled={saving || !actionsEnabled}>
             {saving ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" /> Saving…
               </>
             ) : (
               <>
-                <Save className="h-5 w-5" /> Save cost sheet
+                <Save className="h-5 w-5" /> {actionsEnabled ? 'Save cost sheet' : 'Complete steps to save'}
               </>
             )}
           </Button>
@@ -157,6 +158,7 @@ export function ResultPanel({ result, saving, onSave, onPreviewPdf, className }:
             variant="ghost"
             size="sm"
             onClick={onPreviewPdf}
+            disabled={!actionsEnabled}
             className="w-full text-brand-100/85 hover:bg-white/10 hover:text-white"
           >
             <FileDown className="h-4 w-4" /> Download PDF quotation

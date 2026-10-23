@@ -40,6 +40,9 @@ public class CalculationItem extends BaseEntity {
     @Column(name = "cost_group", nullable = false, length = 30)
     private CostGroup costGroup; // PURCHASE, ORIGIN, FREIGHT, DESTINATION, COMMISSION_TAX
 
+    @Column(name = "source_note", columnDefinition = "TEXT")
+    private String sourceNote;
+
     public Calculation getCalculation() { return calculation; }
     public void setCalculation(Calculation calculation) { this.calculation = calculation; }
 
@@ -60,4 +63,7 @@ public class CalculationItem extends BaseEntity {
 
     public CostGroup getCostGroup() { return costGroup; }
     public void setCostGroup(CostGroup costGroup) { this.costGroup = costGroup; }
+
+    public String getSourceNote() { return sourceNote; }
+    public void setSourceNote(String sourceNote) { this.sourceNote = sourceNote; }
 }

@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatAED, formatINR } from '@/lib/format';
-import { GROUP_LABELS, type CostGroup, type CostLine, type CostLineResult } from '@/lib/export-calc';
+import { GROUP_LABELS, type CostBasis, type CostGroup, type CostLine, type CostLineResult } from '@/lib/export-calc';
 import { cn } from '@/lib/utils';
 
 type EditableGroup = Exclude<CostGroup, 'PURCHASE'>;
@@ -139,11 +139,17 @@ function CostRow({
   const isPercent = line.mode === 'percent';
   const value = isPercent ? line.percent ?? 0 : line.amount ?? 0;
   const suffix = isPercent ? '%' : line.currency === 'AED' ? 'AED' : '₹';
+  const basisLabels: Record<CostBasis, string> = {
+    shipment: 'per shipment',
+    container: 'per container',
+    box: 'per box',
+    carton: 'per carton',
+    kg: 'per kilogram',
+    tonne: 'per metric tonne',
+  };
   const basisLabel = isPercent
     ? `of ${line.percentBase === 'revenue' ? 'sale value' : line.percentBase === 'freight' ? 'freight' : 'purchase'}`
-    : line.basis === 'box'
-      ? 'per box'
-      : 'per shipment';
+    : basisLabels[line.basis || 'shipment'];
 
   return (
     <li className={cn('px-3 py-3 transition-colors sm:px-4', !line.enabled && 'opacity-70')}>
@@ -159,7 +165,7 @@ function CostRow({
             <p className="text-[13.5px] font-bold leading-snug">{line.name}</p>
             {line.custom && (
               <Badge variant="soft" className="px-1.5 py-0 text-[9px]">
-                Custom
+                {line.id.startsWith('port-charge-') ? 'Configured' : line.id.startsWith('freight-quote-') ? 'Quote' : 'Custom'}
               </Badge>
             )}
           </div>
@@ -171,6 +177,7 @@ function CostRow({
             ) : null}
             {basisLabel}
           </p>
+          {line.note && line.custom && <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">{line.note}</p>}
         </div>
 
         {line.enabled && (
@@ -226,7 +233,7 @@ function AddCostDialog({
 }) {
   const [name, setName] = React.useState('');
   const [group, setGroup] = React.useState<EditableGroup>('ORIGIN');
-  const [basis, setBasis] = React.useState<'shipment' | 'box'>('shipment');
+  const [basis, setBasis] = React.useState<CostBasis>('shipment');
   const [currency, setCurrency] = React.useState<'INR' | 'AED'>('INR');
   const [amount, setAmount] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
@@ -306,13 +313,17 @@ function AddCostDialog({
 
             <label className="block space-y-1.5">
               <span className="text-[13px] font-bold">Charged</span>
-              <Select value={basis} onValueChange={(v) => setBasis(v as 'shipment' | 'box')}>
+              <Select value={basis} onValueChange={(v) => setBasis(v as CostBasis)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="shipment">Per shipment</SelectItem>
+                  <SelectItem value="container">Per container</SelectItem>
                   <SelectItem value="box">Per box</SelectItem>
+                  <SelectItem value="carton">Per carton</SelectItem>
+                  <SelectItem value="kg">Per kilogram</SelectItem>
+                  <SelectItem value="tonne">Per metric tonne</SelectItem>
                 </SelectContent>
               </Select>
             </label>
@@ -346,7 +357,7 @@ function AddCostDialog({
 
           {currency === 'AED' && (
             <p className="rounded-xl bg-muted px-3 py-2 text-[11.5px] text-muted-foreground">
-              ≈ {formatINR(Number(amount || 0) / (fx || 0.0417), 0)} at today's FX rate.
+              ≈ {formatINR(Number(amount || 0) / (fx || 0.0417), 0)} at the entered FX rate.
             </p>
           )}
           {error && <p className="text-[12.5px] font-semibold text-destructive">{error}</p>}

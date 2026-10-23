@@ -137,6 +137,20 @@ describe('calculateExport — cost heads', () => {
     expect(r.breakEvenPerBoxAed).toBe(24.98);
   });
 
+  it('applies shipment, single-container, carton, kilogram and tonne bases', () => {
+    const result = calculateExport({
+      ...base,
+      lines: [
+        line({ id: 'shipment', amount: 1000, basis: 'shipment' }),
+        line({ id: 'container', amount: 2000, basis: 'container' }),
+        line({ id: 'carton', amount: 3, basis: 'carton' }),
+        line({ id: 'kg', amount: 2, basis: 'kg' }),
+        line({ id: 'tonne', amount: 4, basis: 'tonne' }),
+      ],
+    });
+    expect(result.lines.map((item) => item.amountInr)).toEqual([1000, 2000, 3000, 10000, 20]);
+  });
+
   it('resolves % of freight after fixed freight lines', () => {
     const withFreightPct = calculateExport({
       ...base,
@@ -173,5 +187,20 @@ describe('toBackendItems', () => {
 
     const shipped = items.reduce((sum, i) => sum + i.amount, 0);
     expect(round(shipped, 2)).toBe(r.totalCostInr);
+  });
+
+  it('preserves provenance for configured, sample and user-entered cost lines', () => {
+    const result = calculateExport({
+      ...base,
+      lines: [
+        line({ id: 'port-charge-7', name: 'Port handling · verified', amount: 100, note: 'Source: port authority; valid to 2030-01-01.' }),
+        line({ id: 'manual', name: 'Broker fee', custom: true, amount: 50 }),
+        line({ id: 'sample', name: 'Illustrative packing', note: 'Replace with a quote.', amount: 25 }),
+      ],
+    });
+    const items = toBackendItems(result);
+    expect(items[1].sourceNote).toBe('Source: port authority; valid to 2030-01-01.');
+    expect(items[2].sourceNote).toContain('User-entered cost');
+    expect(items[3].sourceNote).toContain('Illustrative sample cost');
   });
 });

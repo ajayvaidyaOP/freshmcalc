@@ -17,8 +17,13 @@ public class CalculationDto {
         String expenseName,
         @NotNull @DecimalMin("0") BigDecimal amount,
         @NotBlank @Pattern(regexp = "INR|AED", flags = Pattern.Flag.CASE_INSENSITIVE) String currency,
-        @NotBlank @Pattern(regexp = "PURCHASE|ORIGIN|FREIGHT|DESTINATION|COMMISSION_TAX", flags = Pattern.Flag.CASE_INSENSITIVE) String costGroup
-    ) {}
+        @NotBlank @Pattern(regexp = "PURCHASE|ORIGIN|FREIGHT|DESTINATION|COMMISSION_TAX", flags = Pattern.Flag.CASE_INSENSITIVE) String costGroup,
+        String sourceNote
+    ) {
+        public CalculationItemRequest(String expenseCategory, String expenseName, BigDecimal amount, String currency, String costGroup) {
+            this(expenseCategory, expenseName, amount, currency, costGroup, null);
+        }
+    }
 
     public record CalculationItemResponse(
         Long id,
@@ -27,7 +32,8 @@ public class CalculationDto {
         BigDecimal amount,
         String currency,
         BigDecimal amountAed,
-        String costGroup
+        String costGroup,
+        String sourceNote
     ) {}
 
     public record CalculationRequest(

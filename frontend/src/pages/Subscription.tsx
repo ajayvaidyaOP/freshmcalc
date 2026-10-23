@@ -19,7 +19,7 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 const FEATURE_LABELS: Array<[string, string]> = [
-  ['dubaiRatesAccess', 'Live Dubai rates (AED)'],
+  ['dubaiRatesAccess', 'Dubai market rates (AED)'],
   ['calculatorAccess', 'Export cost calculator'],
   ['pdfExportAccess', 'PDF quotations'],
   ['savedCalculationsAccess', 'Saved cost sheets'],
@@ -188,7 +188,7 @@ export default function Subscription() {
                 <p className={cn('mt-1 max-w-md text-sm leading-relaxed', subActive ? 'text-brand-100/85' : 'text-muted-foreground')}>
                   {subActive
                     ? `Full access to Dubai AED rates, the export calculator and PDF quotations${subscription.currentPeriodEnd ? ` until ${formatDate(subscription.currentPeriodEnd)}` : ''}.`
-                    : 'Subscribe to unlock live Dubai AED rates, the India → Dubai export calculator, saved cost sheets and PDF quotations.'}
+                    : 'Subscribe to unlock Dubai market rates in AED, the India → Dubai export calculator, saved cost sheets and PDF quotations.'}
                 </p>
                 {subActive && progress !== null && (
                   <div className="mt-4 max-w-md">

@@ -22,13 +22,14 @@ import { apiError } from '@/lib/api';
 import { formatNumber } from '@/lib/format';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { PortChargesManager } from '@/components/admin/PortChargesManager';
 
 const portSchema = z.object({
   countryId: z.coerce.number().min(1, 'Select a country'),
   cityId: z.coerce.number().min(1, 'Select a city'),
   name: z.string().min(1, 'Port name is required'),
   unlocode: z.string().min(1, 'UN/LOCODE is required'),
-  portType: z.string().min(1),
+  portType: z.enum(['ORIGIN', 'DESTINATION', 'BOTH']),
   supportsContainer: z.boolean(),
   supportsReefer: z.boolean(),
 });
@@ -65,7 +66,7 @@ export default function AdminPorts() {
 
   const portForm = useForm<z.infer<typeof portSchema>>({
     resolver: zodResolver(portSchema),
-    defaultValues: { countryId: 0, cityId: 0, name: '', unlocode: '', portType: 'SEA', supportsContainer: true, supportsReefer: true },
+    defaultValues: { countryId: 0, cityId: 0, name: '', unlocode: '', portType: 'ORIGIN', supportsContainer: true, supportsReefer: true },
   });
   const selectedCountryId = portForm.watch('countryId');
   const citiesQ = useQuery({
@@ -87,7 +88,7 @@ export default function AdminPorts() {
     try {
       await portsService.createPort(data);
       toast({ title: 'Port added', description: data.name, variant: 'success' });
-      portForm.reset({ countryId: 0, cityId: 0, name: '', unlocode: '', portType: 'SEA', supportsContainer: true, supportsReefer: true });
+      portForm.reset({ countryId: 0, cityId: 0, name: '', unlocode: '', portType: 'ORIGIN', supportsContainer: true, supportsReefer: true });
       queryClient.invalidateQueries({ queryKey: ['ports'] });
     } catch (e: any) {
       toast({ title: 'Could not add port', description: apiError(e), variant: 'destructive' });
@@ -121,7 +122,7 @@ export default function AdminPorts() {
       <PageHeader
         eyebrow="Administration"
         title="Ports & Routes"
-        description="Indian origin ports, Dubai destination routes, transit times and freight quotations."
+        description="Manage ports, configured routes, transit times and freight quotations."
       />
 
       {/* Routes as visual cards */}
@@ -220,6 +221,8 @@ export default function AdminPorts() {
         </Card>
       </div>
 
+      <PortChargesManager />
+
       {/* Forms */}
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         <Card>
@@ -254,7 +257,7 @@ export default function AdminPorts() {
                   )}
                 />
               </FormField>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <FormField label="Transit days" error={routeForm.formState.errors.transitTimeDays?.message}>
                   <Input type="number" min={1} step={1} {...routeForm.register('transitTimeDays')} />
                 </FormField>
@@ -275,7 +278,7 @@ export default function AdminPorts() {
           <CardHeader><CardTitle className="text-base">Add port</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={portForm.handleSubmit(addPort)} className="space-y-4" noValidate>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <FormField label="Port name" error={portForm.formState.errors.name?.message}>
                   <Input placeholder="JNPA / Nhava Sheva" {...portForm.register('name')} />
                 </FormField>
@@ -283,7 +286,7 @@ export default function AdminPorts() {
                   <Input placeholder="INNSA" className="font-mono uppercase" {...portForm.register('unlocode')} />
                 </FormField>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <FormField label="Country" error={portForm.formState.errors.countryId?.message}>
                   <Controller
                     control={portForm.control}
@@ -333,9 +336,9 @@ export default function AdminPorts() {
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="SEA">Sea port</SelectItem>
-                        <SelectItem value="AIR">Air cargo</SelectItem>
-                        <SelectItem value="ICD">Inland container depot (ICD)</SelectItem>
+                        <SelectItem value="ORIGIN">Origin port</SelectItem>
+                        <SelectItem value="DESTINATION">Destination port</SelectItem>
+                        <SelectItem value="BOTH">Origin and destination</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
@@ -374,7 +377,7 @@ export default function AdminPorts() {
                   )}
                 />
               </FormField>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <FormField label="Container type">
                   <Controller
                     control={quoteForm.control}
@@ -396,7 +399,7 @@ export default function AdminPorts() {
                   <Input type="number" inputMode="decimal" step="any" placeholder="1450" {...quoteForm.register('amount')} />
                 </FormField>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <FormField label="Currency">
                   <Controller
                     control={quoteForm.control}

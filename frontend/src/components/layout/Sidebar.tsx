@@ -145,9 +145,9 @@ export function Sidebar({ user, collapsed, onToggle, variant = 'rail', onNavigat
           <div className={cn('mt-6', sectionClass)}>
             <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 p-4 ring-1 ring-white/15">
               <Sparkles className="mb-2 h-5 w-5 text-lime-300" />
-              <p className="font-display text-sm font-bold leading-snug">Unlock live Dubai rates</p>
+              <p className="font-display text-sm font-bold leading-snug">Unlock Dubai market rates</p>
               <p className="mt-1 text-xs leading-relaxed text-brand-100/85">
-                Get AED wholesale rates, the export calculator and PDF quotations.
+                Get publisher-updated AED wholesale rates, the export calculator and PDF quotations.
               </p>
               <Link
                 to="/subscription"

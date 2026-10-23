@@ -31,11 +31,11 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
               Dubai prices in AED. <span className="text-lime-300">Profit before dispatch.</span>
             </h2>
             <p className="mt-4 max-w-md leading-relaxed text-brand-100/85">
-              Join fruit & vegetable traders who check live Dubai wholesale rates and lock their India → Dubai costing before the container is sealed.
+              Join produce traders who review publisher-updated Dubai wholesale rates and prepare an India → Dubai cost estimate before dispatch.
             </p>
             <ul className="mt-8 space-y-4">
               {[
-                { icon: LineChart, text: 'Live Dubai rates with freshness time on every price' },
+                { icon: LineChart, text: 'Dubai market rates with an update time on every price' },
                 { icon: Calculator, text: 'Landed cost per box, kg & tonne — INR → AED built in' },
                 { icon: BadgeCheck, text: 'Professional PDF quotations your buyers trust' },
               ].map((f) => (
@@ -134,7 +134,7 @@ function ServerStatusBanner() {
         }}
         className="mt-3.5 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand-600 to-brand-700 px-4 text-sm font-bold text-white shadow-soft transition-all hover:from-brand-500 hover:to-brand-600 active:scale-[0.98]"
       >
-        <FlaskConical className="h-[18px] w-[18px]" /> Explore live demo — no login needed
+        <FlaskConical className="h-[18px] w-[18px]" /> Try the sample demo — no account needed
       </button>
     </div>
   );
